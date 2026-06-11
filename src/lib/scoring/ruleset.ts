@@ -6,9 +6,11 @@ import { z } from "zod";
 
 const ScoringSchema = z.object({
   exact_score: z.number().default(10),
-  winner_and_diff: z.number().default(5),
-  winner_only: z.number().default(3),
-  draw_only: z.number().default(3),
+  winner_and_diff: z.number().default(7),
+  winner_only: z.number().default(4),
+  draw_only: z.number().default(4),
+  // Consolação: errou o vencedor mas acertou os gols de um dos times. 0 = desligada.
+  goals_one_team: z.number().default(1),
 });
 
 const StageMultipliersSchema = z.object({

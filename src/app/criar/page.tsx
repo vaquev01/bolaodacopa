@@ -18,6 +18,9 @@ interface WizardState {
   // Passo 2
   exactScore: number;
   winnerOnly: number;
+  winnerAndDiff: number;
+  drawOnly: number;
+  goalsOneTeam: number;
   deadlineMinutes: number;
   allowEdit: boolean;
   // Dados user
@@ -45,6 +48,9 @@ export default function CriarPage() {
     selectedMatches: [],
     exactScore: DEFAULT_RULESET.scoring.exact_score,
     winnerOnly: DEFAULT_RULESET.scoring.winner_only,
+    winnerAndDiff: DEFAULT_RULESET.scoring.winner_and_diff,
+    drawOnly: DEFAULT_RULESET.scoring.draw_only,
+    goalsOneTeam: DEFAULT_RULESET.scoring.goals_one_team,
     deadlineMinutes: DEFAULT_RULESET.deadline.minutes_before,
     allowEdit: true,
     userName: "",
@@ -118,7 +124,9 @@ export default function CriarPage() {
           ...DEFAULT_RULESET.scoring,
           exact_score: state.exactScore,
           winner_only: state.winnerOnly,
-          draw_only: state.winnerOnly,
+          winner_and_diff: state.winnerAndDiff,
+          draw_only: state.drawOnly,
+          goals_one_team: state.goalsOneTeam,
         },
         deadline: {
           mode: "per_match",
@@ -356,7 +364,7 @@ export default function CriarPage() {
                     Acerto de placar exato
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Ex: chutou 2×1, deu 2×1
+                    Ex: chutou 2×1, deu 2×1 (recomendado: 10)
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -377,7 +385,7 @@ export default function CriarPage() {
                     Acertou o vencedor
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Cravou quem ganha (ou empate)
+                    Cravou quem ganha (recomendado: 4)
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -393,7 +401,10 @@ export default function CriarPage() {
             {/* Prazo */}
             <div className="p-4 rounded-card" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <p className="text-[15px] font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>
-                Prazo para palpitar
+                Prazo para palpitar{" "}
+                <span className="font-normal text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                  (recomendado: 15 min antes)
+                </span>
               </p>
               <div className="flex gap-2">
                 {DEADLINE_OPTIONS.map((opt) => (
@@ -432,6 +443,63 @@ export default function CriarPage() {
 
             {advancedOpen && (
               <div className="p-4 rounded-card flex flex-col gap-4" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
+                {/* Vencedor + saldo de gols */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Vencedor + saldo de gols
+                    </p>
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      Ex: chutou 2×0, deu 3×1 (recomendado: 7)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StepperButton onClick={() => update("winnerAndDiff", Math.max(0, state.winnerAndDiff - 1))} label="−" />
+                    <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                      {state.winnerAndDiff}
+                    </span>
+                    <StepperButton onClick={() => update("winnerAndDiff", Math.min(99, state.winnerAndDiff + 1))} label="+" />
+                  </div>
+                </div>
+
+                {/* Empate sem placar exato */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Empate sem placar exato
+                    </p>
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      Ex: chutou 1×1, deu 2×2 (recomendado: 4)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StepperButton onClick={() => update("drawOnly", Math.max(0, state.drawOnly - 1))} label="−" />
+                    <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                      {state.drawOnly}
+                    </span>
+                    <StepperButton onClick={() => update("drawOnly", Math.min(99, state.drawOnly + 1))} label="+" />
+                  </div>
+                </div>
+
+                {/* Consolação: gols de um time */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Acertou os gols de um time
+                    </p>
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      Errou o vencedor, mas acertou os gols de um lado (recomendado: 1 · 0 desliga)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StepperButton onClick={() => update("goalsOneTeam", Math.max(0, state.goalsOneTeam - 1))} label="−" />
+                    <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                      {state.goalsOneTeam}
+                    </span>
+                    <StepperButton onClick={() => update("goalsOneTeam", Math.min(99, state.goalsOneTeam + 1))} label="+" />
+                  </div>
+                </div>
+
                 {/* Edição de palpite */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -486,7 +554,13 @@ export default function CriarPage() {
                   : `${state.selectedMatches.length} jogo(s) selecionado(s)`}
               />
               <ReviewRow label="Placar exato" value={`${state.exactScore} pts`} />
+              <ReviewRow label="Vencedor + saldo" value={`${state.winnerAndDiff} pts`} />
               <ReviewRow label="Vencedor certo" value={`${state.winnerOnly} pts`} />
+              <ReviewRow label="Empate sem placar" value={`${state.drawOnly} pts`} />
+              <ReviewRow
+                label="Gols de um time"
+                value={state.goalsOneTeam === 0 ? "Desligada" : `${state.goalsOneTeam} pt(s)`}
+              />
               <ReviewRow
                 label="Prazo"
                 value={DEADLINE_OPTIONS.find((o) => o.value === state.deadlineMinutes)?.label ?? "—"}

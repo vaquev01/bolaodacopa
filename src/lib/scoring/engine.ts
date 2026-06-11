@@ -94,8 +94,16 @@ export function scorePrediction(
     // Layer 3 (draw variant): both predicted draw, actual is draw
     basePoints = ruleset.scoring.draw_only;
     breakdown.draw_only = basePoints;
+  } else if (
+    !correctOutcome &&
+    (predHome === actualHome || predAway === actualAway)
+  ) {
+    // Layer 4 (consolação): errou o vencedor mas acertou os gols de um time.
+    // goals_one_team = 0 desliga a regra.
+    basePoints = ruleset.scoring.goals_one_team;
+    if (basePoints !== 0) breakdown.goals_one_team = basePoints;
   } else {
-    // Layer 4: zero
+    // Layer 5: zero
     basePoints = 0;
   }
 

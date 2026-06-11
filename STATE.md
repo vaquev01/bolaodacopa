@@ -8,7 +8,9 @@
 - **Supabase provisionado:** projeto `bolao-copa` id `rsippykwiffybjfgljzj`, região sa-east-1, $0/mês. URL: https://rsippykwiffybjfgljzj.supabase.co
 - **Migrations aplicadas:** `init_bolao_schema` (8 tabelas + RLS + RPCs: create_profile, create_pool, join_pool, submit_prediction [valida deadline no banco], set_match_result [com audit_log], save_scores) e `seed_wc2026_fixtures_week1` (24 jogos reais 11–18/06, fontes NBC+ESPN+AlJazeera)
 - **Scaffold Next.js** na raiz do repo: App Router + TS + Tailwind + vitest, porta 3017, clients Supabase prontos
-- Em andamento: Scoring Engine (TDD) → API/UI → app rodando
+- MVP rodando (scoring real + API/UI core + calendário 104 jogos + smoke e2e)
+- **Scoring 2026-06-11:** regra de consolação `goals_one_team` (errou vencedor mas acertou os gols de um time; default 1pt, 0 desliga) + defaults rebalanceados para os recomendados (exact 10 / winner_and_diff 7 / winner_only 4 / draw_only 4 / goals_one_team 1). 74/74 testes verdes, build ok, servidor 3017 reiniciado.
+- **Wizard /criar 2026-06-11:** labels "(recomendado: X)" guiando o preenchimento; regras avançadas agora expõem winner_and_diff, draw_only e goals_one_team como steppers opcionais (0 desliga); review step mostra as 5 regras; ruleset enviado usa os 5 valores (antes draw_only copiava winner_only).
 
 ## Decisões de implementação (além da spec)
 

@@ -58,8 +58,9 @@ describe("scorePrediction — exact score", () => {
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 1, score_away_90: 1, score_home_ft: 2, score_away_ft: 1 })
     );
-    // 90min is draw, prediction is home win → no match at all
-    expect(result.points).toBe(0);
+    // 90min is draw, prediction is home win → wrong outcome, but away goals (1) match → consolação
+    expect(result.points).toBe(1);
+    expect(result.breakdown.goals_one_team).toBe(1);
   });
 
   it("score_basis=final: predict 1-1 when final is 2-1 (NOT exact on final)", () => {
@@ -69,8 +70,9 @@ describe("scorePrediction — exact score", () => {
       { home: 1, away: 1 },
       makeMatch({ score_home_90: 1, score_away_90: 1, score_home_ft: 2, score_away_ft: 1 })
     );
-    // final is 2-1, predict 1-1 → not exact, not correct winner (predict draw, home won)
-    expect(result.points).toBe(0);
+    // final is 2-1, predict 1-1 → wrong outcome, but away goals (1) match → consolação
+    expect(result.points).toBe(1);
+    expect(result.breakdown.goals_one_team).toBe(1);
   });
 });
 
@@ -82,8 +84,8 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 2, away: 0 },
       makeMatch({ score_home_90: 3, score_away_90: 1 })
     );
-    expect(result.points).toBe(5);
-    expect(result.breakdown.winner_and_diff).toBe(5);
+    expect(result.points).toBe(7);
+    expect(result.breakdown.winner_and_diff).toBe(7);
     expect(result.breakdown.exact_score).toBeUndefined();
   });
 
@@ -94,8 +96,8 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 3, score_away_90: 1 })
     );
-    expect(result.points).toBe(3); // only winner_only
-    expect(result.breakdown.winner_only).toBe(3);
+    expect(result.points).toBe(4); // only winner_only
+    expect(result.breakdown.winner_only).toBe(4);
     expect(result.breakdown.winner_and_diff).toBeUndefined();
   });
 
@@ -106,9 +108,9 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 1, away: 1 },
       makeMatch({ score_home_90: 2, score_away_90: 2 })
     );
-    // draw_only = 3 (not winner_and_diff, since draws use draw_only)
-    expect(result.points).toBe(3);
-    expect(result.breakdown.draw_only).toBe(3);
+    // draw_only = 4 (not winner_and_diff, since draws use draw_only)
+    expect(result.points).toBe(4);
+    expect(result.breakdown.draw_only).toBe(4);
     expect(result.breakdown.winner_and_diff).toBeUndefined();
   });
 });
@@ -121,8 +123,8 @@ describe("scorePrediction — winner_only", () => {
       { home: 1, away: 0 },
       makeMatch({ score_home_90: 3, score_away_90: 0 })
     );
-    expect(result.points).toBe(3);
-    expect(result.breakdown.winner_only).toBe(3);
+    expect(result.points).toBe(4);
+    expect(result.breakdown.winner_only).toBe(4);
   });
 
   it("awards winner_only for away team win", () => {
@@ -132,8 +134,8 @@ describe("scorePrediction — winner_only", () => {
       { home: 0, away: 1 },
       makeMatch({ score_home_90: 0, score_away_90: 2 })
     );
-    expect(result.points).toBe(3);
-    expect(result.breakdown.winner_only).toBe(3);
+    expect(result.points).toBe(4);
+    expect(result.breakdown.winner_only).toBe(4);
   });
 
   it("returns 0 when wrong winner", () => {
@@ -155,8 +157,8 @@ describe("scorePrediction — draw_only", () => {
       { home: 0, away: 0 },
       makeMatch({ score_home_90: 1, score_away_90: 1 })
     );
-    expect(result.points).toBe(3);
-    expect(result.breakdown.draw_only).toBe(3);
+    expect(result.points).toBe(4);
+    expect(result.breakdown.draw_only).toBe(4);
   });
 
   it("returns 0 when predict draw but actual has winner", () => {
@@ -168,13 +170,78 @@ describe("scorePrediction — draw_only", () => {
     expect(result.points).toBe(0);
   });
 
-  it("returns 0 when predict winner but actual is draw", () => {
+  it("predict winner but actual is draw: only consolação if one team's goals match", () => {
     const result = scorePrediction(
       DEFAULT_RULESET,
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 1, score_away_90: 1 })
     );
+    // errou o vencedor; away 1 == 1 → goals_one_team
+    expect(result.points).toBe(1);
+    expect(result.breakdown.goals_one_team).toBe(1);
+  });
+});
+
+describe("scorePrediction — goals_one_team (consolação)", () => {
+  it("awards goals_one_team when wrong winner but home goals match", () => {
+    // Actual: 3-1 (home win), Predict: 3-4 (away win) — home goals 3 batem
+    const result = scorePrediction(
+      DEFAULT_RULESET,
+      { home: 3, away: 4 },
+      makeMatch({ score_home_90: 3, score_away_90: 1 })
+    );
+    expect(result.points).toBe(1);
+    expect(result.breakdown.goals_one_team).toBe(1);
+  });
+
+  it("returns 0 when wrong winner and no team goals match", () => {
+    // Actual: 3-1, Predict: 0-2 — nada bate
+    const result = scorePrediction(
+      DEFAULT_RULESET,
+      { home: 0, away: 2 },
+      makeMatch({ score_home_90: 3, score_away_90: 1 })
+    );
     expect(result.points).toBe(0);
+    expect(result.breakdown.goals_one_team).toBeUndefined();
+  });
+
+  it("does not fire when winner is correct (winner_only takes priority)", () => {
+    // Actual: 3-1, Predict: 3-2 — vencedor certo + home goals batem → winner_only, não consolação
+    const result = scorePrediction(
+      DEFAULT_RULESET,
+      { home: 3, away: 2 },
+      makeMatch({ score_home_90: 3, score_away_90: 1 })
+    );
+    expect(result.points).toBe(4);
+    expect(result.breakdown.winner_only).toBe(4);
+    expect(result.breakdown.goals_one_team).toBeUndefined();
+  });
+
+  it("goals_one_team = 0 disables the rule", () => {
+    const ruleset = {
+      ...DEFAULT_RULESET,
+      scoring: { ...DEFAULT_RULESET.scoring, goals_one_team: 0 },
+    };
+    const result = scorePrediction(
+      ruleset,
+      { home: 3, away: 4 },
+      makeMatch({ score_home_90: 3, score_away_90: 1 })
+    );
+    expect(result.points).toBe(0);
+    expect(result.breakdown.goals_one_team).toBeUndefined();
+  });
+
+  it("uses custom goals_one_team value with stage multiplier", () => {
+    const ruleset = {
+      ...DEFAULT_RULESET,
+      scoring: { ...DEFAULT_RULESET.scoring, goals_one_team: 2 },
+    };
+    const result = scorePrediction(
+      ruleset,
+      { home: 3, away: 4 },
+      makeMatch({ stage: "qf", score_home_90: 3, score_away_90: 1 })
+    );
+    expect(result.points).toBe(4); // 2 * qf(2)
   });
 });
 
@@ -198,8 +265,8 @@ describe("scorePrediction — mutually exclusive layers", () => {
       { home: 4, away: 2 },
       makeMatch({ score_home_90: 2, score_away_90: 0 })
     );
-    expect(result.points).toBe(5);
-    expect(result.breakdown.winner_and_diff).toBe(5);
+    expect(result.points).toBe(7);
+    expect(result.breakdown.winner_and_diff).toBe(7);
     expect(result.breakdown.winner_only).toBeUndefined();
   });
 });
@@ -241,7 +308,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 1, away: 0 },
       makeMatch({ stage: "qf", score_home_90: 3, score_away_90: 0 })
     );
-    expect(result.points).toBe(6); // winner_only=3 * 2
+    expect(result.points).toBe(8); // winner_only=4 * 2
     expect(result.breakdown.stage_multiplier).toBe(2);
   });
 

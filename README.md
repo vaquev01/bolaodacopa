@@ -8,8 +8,8 @@ Plataforma onde qualquer pessoa cria e administra seu próprio bolão da Copa do
 
 - ✅ Supabase provisionado: projeto `bolao-copa` (`rsippykwiffybjfgljzj`, sa-east-1, free tier) — schema completo (8 tabelas, RLS, 7 RPCs security definer com deadline server-side)
 - ✅ Scaffold Next.js 14 App Router + TypeScript + Tailwind + vitest (porta 3017), clients Supabase em `src/lib/supabase/`
-- ✅ Scoring Engine (`src/lib/scoring/`) — TDD, 69 testes passando (ruleset Zod + engine puro + standings)
-- ✅ API routes + UI das telas core (landing, wizard `/criar`, `/b/[slug]` palpites+ranking, admin, convite WhatsApp)
+- ✅ Scoring Engine (`src/lib/scoring/`) — TDD, 74 testes passando (ruleset Zod + engine puro + standings). Regra de consolação `goals_one_team` (errou vencedor mas acertou gols de um time; default 1pt, 0 desliga) e defaults rebalanceados: exato 10 / vencedor+saldo 7 / vencedor 4 / empate 4 / consolação 1
+- ✅ API routes + UI das telas core (landing, wizard `/criar`, `/b/[slug]` palpites+ranking, admin, convite WhatsApp). Wizard com "(recomendado: X)" guiando o preenchimento; regras avançadas expõem vencedor+saldo, empate e consolação como steppers opcionais
 - ✅ **Calendário oficial completo: 104 jogos** sincronizados da API football-data.org (abertura 11/06 19:00 UTC → final 19/07), nomes pt-BR, mata-mata como "A definir" até classificação
 - ✅ Smoke test end-to-end validado contra Supabase real: criar perfil → criar bolão → entrar → palpitar → lançar resultado → pontos calculados (exato=10, vencedor+saldo=5)
 - ⏳ Sync automático de placares via cron (token no Keychain `keli-vault/football-data`) — follow-up

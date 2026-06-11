@@ -296,10 +296,10 @@ export default function CriarPage() {
                 onChange={(e) => update("poolName", e.target.value)}
                 placeholder="Ex: Bolão do Escritório"
                 maxLength={64}
-                className="w-full px-4 py-3 rounded-button border text-[17px] outline-none"
+                className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
                 style={{
                   background: "var(--color-bg-card)",
-                  borderColor: "var(--color-bg-secondary)",
+                  borderColor: "var(--border-subtle)",
                   color: "var(--color-text-primary)",
                 }}
               />
@@ -316,34 +316,62 @@ export default function CriarPage() {
                     id: "full" as const,
                     title: "Copa Inteira",
                     sub: "Todos os 104 jogos do torneio",
-                    icon: "🌍",
+                    icon: (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M2.5 10h15M10 2.5a12.5 12.5 0 010 15M10 2.5a12.5 12.5 0 000 15" stroke="currentColor" strokeWidth="1.5" />
+                      </svg>
+                    ),
                   },
                   {
                     id: "custom" as const,
                     title: "Escolher jogos",
                     sub: "Selecione quais jogos entram no bolão",
-                    icon: "🎯",
+                    icon: (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <rect x="3" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                        <rect x="11" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                        <rect x="3" y="11" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M14 11v6M11 14h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    ),
                   },
                   {
                     id: "specials_only" as const,
                     title: "Só classificação",
                     sub: "Acertar classificados dos grupos e o campeão — sem placares",
-                    icon: "🏆",
+                    icon: (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M6 2.5h8M6 2.5C6 2.5 4 2.5 4 5c0 3 1.5 5.5 4 6.5V14H6.5a.75.75 0 000 1.5h7a.75.75 0 000-1.5H12v-2.5c2.5-1 4-3.5 4-6.5 0-2.5-2-2.5-2-2.5M8 14h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ),
                   },
                 ].map((opt) => (
                   <button
                     key={opt.id}
                     onClick={() => update("scopeType", opt.id)}
-                    className="flex items-center gap-3 p-4 rounded-card text-left transition-all"
+                    className="flex items-center gap-3 p-4 rounded-card text-left transition-all active:scale-[0.98]"
                     style={{
                       background: state.scopeType === opt.id
                         ? "var(--color-accent)"
                         : "var(--color-bg-card)",
                       boxShadow: "var(--shadow-card)",
                       color: state.scopeType === opt.id ? "#fff" : "var(--color-text-primary)",
+                      transitionTimingFunction: "var(--ease-spring)",
+                      transitionDuration: "var(--duration-feedback)",
                     }}
                   >
-                    <span className="text-2xl">{opt.icon}</span>
+                    <span
+                      className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-button"
+                      style={{
+                        background: state.scopeType === opt.id
+                          ? "rgba(255,255,255,0.2)"
+                          : "var(--color-bg-secondary)",
+                        color: state.scopeType === opt.id ? "#fff" : "var(--color-text-secondary)",
+                      }}
+                    >
+                      {opt.icon}
+                    </span>
                     <div>
                       <p className="font-semibold text-[15px]">{opt.title}</p>
                       <p className="text-[13px] opacity-70">{opt.sub}</p>
@@ -822,10 +850,10 @@ export default function CriarPage() {
                   onChange={(e) => update("userName", e.target.value)}
                   placeholder="Como você quer ser chamado?"
                   maxLength={64}
-                  className="w-full px-4 py-3 rounded-button border text-[17px] outline-none"
+                  className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
                   style={{
                     background: "var(--color-bg-card)",
-                    borderColor: "var(--color-bg-secondary)",
+                    borderColor: "var(--border-subtle)",
                     color: "var(--color-text-primary)",
                   }}
                 />
@@ -849,8 +877,12 @@ export default function CriarPage() {
             <button
               onClick={() => setStep(step + 1)}
               disabled={step === 1 && !canAdvanceStep1()}
-              className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity disabled:opacity-40"
-              style={{ background: "var(--color-accent)" }}
+              className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-all active:scale-[0.98] disabled:opacity-40"
+              style={{
+                background: "var(--color-accent)",
+                transitionTimingFunction: "var(--ease-spring)",
+                transitionDuration: "var(--duration-feedback)",
+              }}
             >
               Continuar
             </button>
@@ -858,10 +890,14 @@ export default function CriarPage() {
             <button
               onClick={handleCreate}
               disabled={loading}
-              className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity disabled:opacity-60"
-              style={{ background: "var(--color-accent)" }}
+              className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{
+                background: "var(--color-accent)",
+                transitionTimingFunction: "var(--ease-spring)",
+                transitionDuration: "var(--duration-feedback)",
+              }}
             >
-              {loading ? "Criando..." : "Criar Bolão"}
+              {loading ? "Criando…" : "Criar bolão"}
             </button>
           )}
         </div>

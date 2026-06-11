@@ -2,43 +2,72 @@
  * Utilitários compartilhados para o app bolão.
  */
 
+// As 48 seleções da Copa 2026 — nomes EXATOS como estão na tabela matches/teams.
 export const FLAG: Record<string, string> = {
-  Brasil: "🇧🇷",
-  Argentina: "🇦🇷",
-  França: "🇫🇷",
-  Alemanha: "🇩🇪",
-  Espanha: "🇪🇸",
-  Inglaterra: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-  Itália: "🇮🇹",
-  Portugal: "🇵🇹",
-  Holanda: "🇳🇱",
-  Croácia: "🇭🇷",
-  Uruguai: "🇺🇾",
-  Colômbia: "🇨🇴",
+  // Grupo A
   México: "🇲🇽",
-  EUA: "🇺🇸",
-  "Estados Unidos": "🇺🇸",
+  "África do Sul": "🇿🇦",
+  "Coreia do Sul": "🇰🇷",
+  Tchéquia: "🇨🇿",
+  // Grupo B
   Canadá: "🇨🇦",
-  Japão: "🇯🇵",
-  Coreia: "🇰🇷",
-  Senegal: "🇸🇳",
-  Marrocos: "🇲🇦",
-  Ghana: "🇬🇭",
-  Nigéria: "🇳🇬",
-  Cameroun: "🇨🇲",
+  "Bósnia-Herzegovina": "🇧🇦",
+  Catar: "🇶🇦",
   Suíça: "🇨🇭",
-  Bélgica: "🇧🇪",
-  Dinamarca: "🇩🇰",
-  Polônia: "🇵🇱",
-  Sérvia: "🇷🇸",
+  // Grupo C
+  Brasil: "🇧🇷",
+  Marrocos: "🇲🇦",
+  Haiti: "🇭🇹",
+  Escócia: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  // Grupo D
+  EUA: "🇺🇸",
+  Paraguai: "🇵🇾",
   Austrália: "🇦🇺",
-  Arábia: "🇸🇦",
-  "Arábia Saudita": "🇸🇦",
-  Qatar: "🇶🇦",
+  Türkiye: "🇹🇷",
+  // Grupo E
+  Alemanha: "🇩🇪",
+  Curaçao: "🇨🇼",
+  "Costa do Marfim": "🇨🇮",
   Equador: "🇪🇨",
-  "Costa Rica": "🇨🇷",
+  // Grupo F
+  "Países Baixos": "🇳🇱",
+  Japão: "🇯🇵",
+  Suécia: "🇸🇪",
   Tunísia: "🇹🇳",
-  Iran: "🇮🇷",
+  // Grupo G
+  Bélgica: "🇧🇪",
+  Egito: "🇪🇬",
+  Irã: "🇮🇷",
+  "Nova Zelândia": "🇳🇿",
+  // Grupo H
+  Espanha: "🇪🇸",
+  "Cabo Verde": "🇨🇻",
+  "Arábia Saudita": "🇸🇦",
+  Uruguai: "🇺🇾",
+  // Grupo I
+  França: "🇫🇷",
+  Senegal: "🇸🇳",
+  Iraque: "🇮🇶",
+  Noruega: "🇳🇴",
+  // Grupo J
+  Argentina: "🇦🇷",
+  Argélia: "🇩🇿",
+  Áustria: "🇦🇹",
+  Jordânia: "🇯🇴",
+  // Grupo K
+  Portugal: "🇵🇹",
+  "RD Congo": "🇨🇩",
+  Uzbequistão: "🇺🇿",
+  Colômbia: "🇨🇴",
+  // Grupo L
+  Inglaterra: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  Gana: "🇬🇭",
+  Croácia: "🇭🇷",
+  Panamá: "🇵🇦",
+  // Aliases comuns
+  Holanda: "🇳🇱",
+  Turquia: "🇹🇷",
+  "Estados Unidos": "🇺🇸",
 };
 
 export function getFlag(team: string): string {

@@ -25,6 +25,9 @@
   --color-gold: #ffd60a;
   --color-live: #ff3b30;
 
+  /* Border hairline */
+  --border-subtle: rgba(0, 0, 0, 0.08);
+
   /* Spacing base: 4px */
   --space-1: 4px;
   --space-2: 8px;
@@ -71,6 +74,9 @@
     --color-danger: #ff453a;
     --color-gold: #ffd60a;
     --color-live: #ff453a;
+
+    /* Border hairline dark */
+    --border-subtle: rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -83,7 +89,9 @@ html {
 body {
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  /* "Twemoji Country Flags" só existe quando o polyfill a injeta (Windows) —
+     nas demais plataformas o browser ignora e segue para a stack nativa. */
+  font-family: "Twemoji Country Flags", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -95,10 +103,50 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Focus ring */
+/* Heading balance */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Text selection — accent tint */
+::selection {
+  background-color: rgba(0, 91, 187, 0.18);
+  color: var(--color-text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  ::selection {
+    background-color: rgba(10, 132, 255, 0.28);
+  }
+}
+
+/* Focus ring — desenhado, nunca browser default */
 *:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar discreta */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-bg-secondary) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-bg-secondary);
+  border-radius: 99px;
 }
 
 /* Reduced motion */
@@ -109,5 +157,12 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 150ms !important;
+  }
+}
+
+/* Live pulse respeita reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none !important;
   }
 }

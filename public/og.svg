@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#005BBB"/>
+
+  <!-- Subtle geometric texture: large circle bottom-right, low opacity -->
+  <circle cx="1050" cy="520" r="320" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="80"/>
+  <circle cx="1050" cy="520" r="200" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="60"/>
+
+  <!-- Trophy glyph (scaled up, top-left zone as anchor) -->
+  <g transform="translate(80, 80) scale(4.2)">
+    <!-- Cup body -->
+    <path d="M10 4 L22 4 L20 17 Q20 20 16 20 Q12 20 12 17 Z" fill="rgba(255,255,255,0.18)"/>
+    <!-- Left handle arc -->
+    <path d="M10 6 Q5 6 5 11 Q5 15 10 15 L10 13 Q7 13 7 11 Q7 8 10 8 Z" fill="rgba(255,255,255,0.18)"/>
+    <!-- Right handle arc -->
+    <path d="M22 6 Q27 6 27 11 Q27 15 22 15 L22 13 Q25 13 25 11 Q25 8 22 8 Z" fill="rgba(255,255,255,0.18)"/>
+    <!-- Stem -->
+    <rect x="14" y="20" width="4" height="4" rx="0.5" fill="rgba(255,255,255,0.18)"/>
+    <!-- Base -->
+    <rect x="10" y="24" width="12" height="3" rx="1" fill="rgba(255,255,255,0.18)"/>
+  </g>
+
+  <!-- Main title -->
+  <text
+    x="80"
+    y="340"
+    font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="96"
+    font-weight="700"
+    fill="#FFFFFF"
+    letter-spacing="-2"
+  >Bolão</text>
+
+  <text
+    x="80"
+    y="445"
+    font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="96"
+    font-weight="700"
+    fill="#FFFFFF"
+    letter-spacing="-2"
+  >da Copa 2026</text>
+
+  <!-- Subtitle -->
+  <text
+    x="80"
+    y="510"
+    font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="32"
+    font-weight="400"
+    fill="rgba(255,255,255,0.72)"
+    letter-spacing="0"
+  >Palpite com seus amigos. Simples e ao vivo.</text>
+
+  <!-- Divider line -->
+  <rect x="80" y="278" width="64" height="4" rx="2" fill="rgba(255,255,255,0.50)"/>
+</svg>

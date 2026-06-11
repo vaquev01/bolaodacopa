@@ -1,10 +1,46 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import EmojiFlagPolyfill from "./EmojiFlagPolyfill";
+
+export const viewport: Viewport = {
+  themeColor: "#005BBB",
+};
 
 export const metadata: Metadata = {
-  title: "Bolão Copa 2026",
+  title: {
+    default: "Bolão da Copa 2026",
+    template: "%s — Bolão da Copa 2026",
+  },
   description:
-    "Crie e gerencie seu próprio bolão da Copa do Mundo 2026 — regras configuráveis, ranking ao vivo.",
+    "Faça seus palpites, acompanhe o ranking e dispute com os amigos na Copa do Mundo 2026.",
+  metadataBase: new URL("https://bolao.app"),
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Bolão da Copa 2026",
+    title: "Bolão da Copa 2026",
+    description:
+      "Faça seus palpites, acompanhe o ranking e dispute com os amigos na Copa do Mundo 2026.",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Bolão da Copa 2026 — Palpite com seus amigos",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Bolão da Copa 2026",
+    description:
+      "Faça seus palpites, acompanhe o ranking e dispute com os amigos na Copa do Mundo 2026.",
+    images: ["/og.png"],
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +50,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <EmojiFlagPolyfill />
+        {children}
+      </body>
     </html>
   );
 }

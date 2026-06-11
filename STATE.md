@@ -1,6 +1,25 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-11 14:45 (v1.1 Bracket pré-Copa no ar)
+**Atualizado:** 2026-06-11 18:10 (v1.2 redesign completo + identidade visual)
+
+## v1.2 — Redesign UX/UI + identidade (2026-06-11, tarde/noite)
+
+Pedido do Victor: "experiência muito prática e bonita" + "chamar todos agentes e skills em design". Executado em waves: cre-ux (2 rounds) + cre-designer em paralelo, gates design-dna/apple-design/ux-guidelines.
+
+- **Zero `<select>` no app** — grupos/campeão/bracket viram chips tocáveis com bandeira (tap = 1º sólido / 2º outline), busca por texto no campeão, picks visuais no mata-mata
+- **Validação da tabela vs PDF Estadão** (~/Documents/tabelacopa2026estadao.pdf): 104 jogos conferidos um a um (grupos, confrontos, horários Brasília, mata-mata completo) — 100% coerente
+- **Bandeiras cross-platform**: emoji não renderiza no Windows → `country-flag-emoji-polyfill` (EmojiFlagPolyfill.tsx + font stack), FLAG map completado com as 48 seleções exatas do banco (antes ~15 caíam no 🏴)
+- **Identidade (cre-designer)**: icon.svg (troféu flat 1-cor), public/og.png 1200×630 (preview WhatsApp — principal asset de aquisição), apple-touch-icon, metadata OG/twitter completa, docs/brand.md. metadataBase provisório https://bolao.app — AJUSTAR no deploy
+- **Craft global (cre-ux round 2)**: landing redesenhada (headline "Seu bolão, suas regras."), wizard/convite/entrar/admin polidos, AdminClient com steppers + confirmação de resultado, dark mode coerente, focus-visible, motion-safe, empty states humanos
+- Ajustes finais (Keli): labels de pontos sem cara de link, tab ativa em acento, landing equilibrada
+- 107/107 testes, build limpo, servidor 3017 com build novo
+
+## Acesso externo (resolvido parcialmente 2026-06-11)
+
+- **Túnel ativo**: https://constitution-moment-nations-calendar.trycloudflare.com (cloudflared quick tunnel, porta 3017, processo no Mac — frágil, morre se Mac desligar)
+- ngrok NÃO disponível p/ 3017 (ocupado pelo dashboard Keli na 8100, URL fixa)
+- **Deploy Vercel PENDENTE**: bloqueado em credencial — Victor precisa rodar `vercel login` (sem token no vault). ⚠️ Cookies de identidade são presos ao domínio: migrar de túnel→Vercel = participantes perdem conta. Definir domínio definitivo ANTES de convidar o grupo
+- ⏰ Lock do bracket (escopo full) PASSOU: 11/06 16:00 Brasília (abertura). Bolões full criados agora já nascem com bracket travado
 
 ## v1.1 — Bracket pré-Copa (2026-06-11, tarde)
 

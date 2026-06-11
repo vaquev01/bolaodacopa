@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Ruleset } from "@/lib/scoring";
+import { getFlag } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -58,29 +59,42 @@ function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
   };
 }
 
-function useCountdown(lockAt: string | null): string {
-  const [label, setLabel] = useState("");
+function useCountdown(lockAt: string | null): { label: string; urgency: "ok" | "warning" | "danger" } {
+  const [state, setState] = useState({ label: "", urgency: "ok" as "ok" | "warning" | "danger" });
+
   useEffect(() => {
     if (!lockAt) return;
     function update() {
       const diff = new Date(lockAt!).getTime() - Date.now();
-      if (diff <= 0) { setLabel(""); return; }
+      if (diff <= 0) { setState({ label: "", urgency: "ok" }); return; }
+      const urgency: "ok" | "warning" | "danger" =
+        diff < 60 * 60 * 1000 ? "danger"
+        : diff < 24 * 60 * 60 * 1000 ? "warning"
+        : "ok";
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
+      let label: string;
       if (h > 24) {
-        setLabel(`${Math.floor(h / 24)}d ${h % 24}h`);
+        label = `${Math.floor(h / 24)}d ${h % 24}h`;
       } else if (h > 0) {
-        setLabel(`${h}h ${m}m`);
+        const hh = String(h).padStart(2, "0");
+        const mm = String(m).padStart(2, "0");
+        const ss = String(s).padStart(2, "0");
+        label = `${hh}:${mm}:${ss}`;
       } else {
-        setLabel(`${m}m ${s}s`);
+        const mm = String(m).padStart(2, "0");
+        const ss = String(s).padStart(2, "0");
+        label = `${mm}:${ss}`;
       }
+      setState({ label, urgency });
     }
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [lockAt]);
-  return label;
+
+  return state;
 }
 
 // ─── Main Component ──────────────────────────────────────────
@@ -88,7 +102,6 @@ function useCountdown(lockAt: string | null): string {
 export default function BracketCard({
   poolId,
   ruleset,
-  teams,
   groupTeams,
   myBracket,
   lockAt,
@@ -97,10 +110,16 @@ export default function BracketCard({
   const [payload, setPayload] = useState<BracketPayload>(() => parseBracket(myBracket));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const countdown = useCountdown(lockAt);
+  const { label: countdownLabel, urgency: countdownUrgency } = useCountdown(lockAt);
 
   const pts = ruleset.advance_predictions?.points;
   const activeGroups = GROUPS.filter((g) => groupTeams[g]?.length > 0);
+
+  // Progresso de grupos
+  const completedGroups = activeGroups.filter((g) => {
+    const p = payload.groups[g] ?? [];
+    return p[0] && p[1];
+  }).length;
 
   // Derivar lista de qualificados a partir dos picks de grupo
   const qualifiedFromGroups: string[] = [];
@@ -110,20 +129,31 @@ export default function BracketCard({
       if (t && !qualifiedFromGroups.includes(t)) qualifiedFromGroups.push(t);
     }
   }
-  // Adicionar third_qualifiers
   for (const t of payload.third_qualifiers) {
     if (t && !qualifiedFromGroups.includes(t)) qualifiedFromGroups.push(t);
   }
 
-  function setGroupPick(group: string, pos: number, team: string) {
+  // ── Handlers ─────────────────────────────────────────────────
+
+  function handleGroupChipTap(group: string, team: string) {
     setPayload((p) => {
       const cur = p.groups[group] ?? ["", ""];
-      const updated = [...cur] as string[];
-      updated[pos] = team;
-      if (pos === 0 && updated[1] === team) updated[1] = "";
-      if (pos === 1 && updated[0] === team) updated[0] = "";
-      return { ...p, groups: { ...p.groups, [group]: updated } };
+      const [p1, p2] = cur;
+      let next: string[];
+      if (p1 === team) {
+        next = [p2, ""];
+      } else if (p2 === team) {
+        next = [p1, ""];
+      } else if (!p1) {
+        next = [team, p2 === team ? "" : p2];
+      } else if (!p2) {
+        next = [p1, team];
+      } else {
+        next = [p1, team];
+      }
+      return { ...p, groups: { ...p.groups, [group]: next } };
     });
+    setStatus("idle");
   }
 
   function toggleKO(
@@ -132,19 +162,20 @@ export default function BracketCard({
   ) {
     setPayload((p) => {
       const cur = p[phase];
-      const next = cur.includes(team)
-        ? cur.filter((t) => t !== team)
-        : [...cur, team];
+      const next = cur.includes(team) ? cur.filter((t) => t !== team) : [...cur, team];
       return { ...p, [phase]: next };
     });
+    setStatus("idle");
   }
 
   function setChampion(team: string) {
     setPayload((p) => ({ ...p, champion: p.champion === team ? "" : team }));
+    setStatus("idle");
   }
 
   function setThirdPlace(team: string) {
     setPayload((p) => ({ ...p, third_place: p.third_place === team ? "" : team }));
+    setStatus("idle");
   }
 
   async function handleSave() {
@@ -180,8 +211,8 @@ export default function BracketCard({
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-card p-4" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[15px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[17px] font-bold" style={{ color: "var(--color-text-primary)" }}>
               Meu Bracket
             </h2>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-badge"
@@ -192,7 +223,7 @@ export default function BracketCard({
 
           {!myBracket ? (
             <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-              Você não preencheu o bracket antes do prazo.
+              O prazo encerrou antes de você preencher o bracket. Acompanhe o ranking para ver seu desempenho nos placares.
             </p>
           ) : (
             <BracketView payload={payload} />
@@ -208,17 +239,37 @@ export default function BracketCard({
     <div className="flex flex-col gap-4">
       {/* Cabeçalho */}
       <div className="rounded-card p-4" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
-        <h2 className="text-[15px] font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>
-          Bracket pré-Copa
-        </h2>
-        <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-          Palpite de classificados, semifinalistas e campeão antes da Copa — pontos extras por fase.
-        </p>
-        {lockAt && countdown && (
-          <p className="text-[13px] font-semibold mt-2" style={{ color: "var(--color-warning)" }}>
-            Trava em {countdown}
-          </p>
-        )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <h2 className="text-[17px] font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>
+              Bracket pré-Copa
+            </h2>
+            <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+              Escolha 1º e 2º de cada grupo — depois o mata-mata se monta.
+            </p>
+          </div>
+          {lockAt && countdownLabel && (
+            <div className="flex flex-col items-end flex-shrink-0">
+              <span className="text-[10px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                Trava em
+              </span>
+              <span
+                className="tabular-nums text-[13px] font-bold"
+                aria-live="polite"
+                style={{
+                  color: countdownUrgency === "danger"
+                    ? "var(--color-danger)"
+                    : countdownUrgency === "warning"
+                      ? "var(--color-warning)"
+                      : "var(--color-text-primary)",
+                }}
+              >
+                {countdownLabel}
+              </span>
+            </div>
+          )}
+        </div>
+
         {pts && (
           <div className="flex flex-wrap gap-1.5 mt-3">
             {[
@@ -244,32 +295,42 @@ export default function BracketCard({
 
       {/* Grupos */}
       {activeGroups.length > 0 && (
-        <Section title="Grupos — 1º e 2º classificados">
+        <Section title="Grupos — 1º e 2º classificados" progress={`${completedGroups}/${activeGroups.length}`}>
           {activeGroups.map((g) => {
             const teamList = groupTeams[g] ?? [];
             const picks = payload.groups[g] ?? ["", ""];
+            const [p1, p2] = picks;
             return (
-              <div key={g} className="flex flex-col gap-1">
-                <p className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                  Grupo {g}
-                </p>
-                <div className="flex gap-2">
-                  <TeamSelect
-                    value={picks[0] ?? ""}
-                    options={teamList}
-                    excluded={picks[1] ?? ""}
-                    placeholder="1º..."
-                    onChange={(t) => setGroupPick(g, 0, t)}
-                    aria={`1º do grupo ${g}`}
-                  />
-                  <TeamSelect
-                    value={picks[1] ?? ""}
-                    options={teamList}
-                    excluded={picks[0] ?? ""}
-                    placeholder="2º..."
-                    onChange={(t) => setGroupPick(g, 1, t)}
-                    aria={`2º do grupo ${g}`}
-                  />
+              <div key={g} className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+                    Grupo {g}
+                  </span>
+                  {p1 && p2 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-badge"
+                      style={{ background: "var(--color-success)", color: "#fff" }}>
+                      OK
+                    </span>
+                  )}
+                  {(p1 || p2) && !(p1 && p2) && (
+                    <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
+                      falta {!p1 ? "1º" : "2º"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {teamList.map((team) => {
+                    const chipState: "none" | "first" | "second" =
+                      p1 === team ? "first" : p2 === team ? "second" : "none";
+                    return (
+                      <GroupChip
+                        key={team}
+                        team={team}
+                        state={chipState}
+                        onClick={() => handleGroupChipTap(g, team)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -279,9 +340,9 @@ export default function BracketCard({
 
       {/* Oitavas */}
       {qualifiedFromGroups.length > 0 && (
-        <Section title={`Oitavas — ${pts?.r16 ?? 2} pts/seleção`}>
+        <Section title={`Oitavas de final — ${pts?.r16 ?? 2} pts/seleção`}>
           <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-            Quais times chegam às oitavas?
+            Quais seleções chegam às oitavas?
           </p>
           <TeamChips
             teams={qualifiedFromGroups}
@@ -293,10 +354,7 @@ export default function BracketCard({
 
       {/* Quartas */}
       {payload.r16_winners.length > 0 && (
-        <Section title={`Quartas — ${pts?.qf ?? 3} pts/seleção`}>
-          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-            Quais times chegam às quartas?
-          </p>
+        <Section title={`Quartas de final — ${pts?.qf ?? 3} pts/seleção`}>
           <TeamChips
             teams={payload.r16_winners}
             selected={payload.qf_winners}
@@ -327,27 +385,47 @@ export default function BracketCard({
         </Section>
       )}
 
-      {/* Campeão */}
+      {/* Campeão — destaque visual */}
       {payload.finalists.length > 0 && (
-        <Section title={`Campeão — ${pts?.champion ?? 25} pts`}>
-          <TeamChips
-            teams={payload.finalists}
-            selected={payload.champion ? [payload.champion] : []}
-            onToggle={setChampion}
-          />
-        </Section>
+        <div
+          className="rounded-card p-4 flex flex-col gap-3"
+          style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-gold)" }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-[15px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+              Campeão
+            </h3>
+            <span className="text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-badge"
+              style={{ background: "var(--color-gold)", color: "#1D1D1F" }}>
+              {pts?.champion ?? 25} pts
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {payload.finalists.map((t) => (
+              <PodiumChip
+                key={t}
+                team={t}
+                selected={payload.champion === t}
+                label="Campeão"
+                onClick={() => setChampion(t)}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* 3º lugar — dos semifinalistas que não chegaram à final */}
+      {/* 3º lugar */}
       {payload.sf_winners.length > 0 && (
         <Section title={`3º lugar — ${pts?.third_place ?? 8} pts`}>
           <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
             Quem vence o jogo do 3º lugar?
           </p>
           <TeamChips
-            teams={payload.sf_winners.filter((t) => !payload.finalists.includes(t)).length > 0
-              ? payload.sf_winners.filter((t) => !payload.finalists.includes(t))
-              : payload.sf_winners}
+            teams={
+              payload.sf_winners.filter((t) => !payload.finalists.includes(t)).length > 0
+                ? payload.sf_winners.filter((t) => !payload.finalists.includes(t))
+                : payload.sf_winners
+            }
             selected={payload.third_place ? [payload.third_place] : []}
             onToggle={setThirdPlace}
           />
@@ -373,22 +451,22 @@ export default function BracketCard({
 // ─── BracketView (pós-lock, visualização somente-leitura) ─────
 
 function BracketView({ payload }: { payload: BracketPayload }) {
+  const vice = payload.finalists.find((t) => t !== payload.champion) || "—";
   const rows: Array<[string, string]> = [
-    ["Campeão", payload.champion || "—"],
-    ["Vice", payload.finalists.find((t) => t !== payload.champion) || "—"],
-    ["3º lugar", payload.third_place || "—"],
-    ["Finalistas", payload.finalists.join(" × ") || "—"],
-    ["Semifinalistas", payload.sf_winners.join(", ") || "—"],
-    ["Quartas", payload.qf_winners.join(", ") || "—"],
-    ["Oitavas", payload.r16_winners.slice(0, 4).join(", ") + (payload.r16_winners.length > 4 ? "…" : "") || "—"],
+    ["Campeão", payload.champion ? `${getFlag(payload.champion)} ${payload.champion}` : "—"],
+    ["Vice", vice !== "—" ? `${getFlag(vice)} ${vice}` : "—"],
+    ["3º lugar", payload.third_place ? `${getFlag(payload.third_place)} ${payload.third_place}` : "—"],
+    ["Semifinalistas", payload.sf_winners.map((t) => `${getFlag(t)} ${t}`).join(", ") || "—"],
+    ["Quartas", payload.qf_winners.map((t) => `${getFlag(t)} ${t}`).join(", ") || "—"],
+    ["Oitavas", payload.r16_winners.slice(0, 4).map((t) => `${getFlag(t)} ${t}`).join(", ") + (payload.r16_winners.length > 4 ? "…" : "") || "—"],
   ];
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {rows.map(([label, value]) => (
-        <div key={label} className="flex justify-between">
-          <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>{label}</span>
-          <span className="text-[13px] font-semibold text-right" style={{ color: "var(--color-text-primary)", maxWidth: "60%" }}>
+        <div key={label} className="flex justify-between items-start gap-3">
+          <span className="text-[13px] flex-shrink-0" style={{ color: "var(--color-text-secondary)" }}>{label}</span>
+          <span className="text-[13px] font-semibold text-right" style={{ color: "var(--color-text-primary)" }}>
             {value}
           </span>
         </div>
@@ -399,18 +477,91 @@ function BracketView({ payload }: { payload: BracketPayload }) {
 
 // ─── Helpers de UI ────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  progress,
+  children,
+}: {
+  title: string;
+  progress?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-card p-4 flex flex-col gap-3"
       style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
-      <h3 className="text-[13px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-        {title}
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-[13px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+          {title}
+        </h3>
+        {progress && (
+          <span className="text-[11px] font-semibold tabular-nums" style={{ color: "var(--color-accent)" }}>
+            {progress}
+          </span>
+        )}
+      </div>
       {children}
     </div>
   );
 }
 
+// Chip para grupos (3 estados: none / first / second)
+function GroupChip({
+  team,
+  state,
+  onClick,
+}: {
+  team: string;
+  state: "none" | "first" | "second";
+  onClick: () => void;
+}) {
+  const flag = getFlag(team);
+
+  const bg =
+    state === "first" ? "var(--color-accent)"
+    : state === "second" ? "transparent"
+    : "var(--color-bg-secondary)";
+
+  const border =
+    state === "second" ? "1.5px solid var(--color-accent)" : "1.5px solid transparent";
+
+  const color =
+    state === "first" ? "#fff"
+    : state === "second" ? "var(--color-accent)"
+    : "var(--color-text-secondary)";
+
+  return (
+    <button
+      onClick={onClick}
+      className="relative flex items-center gap-1.5 px-3 py-2 rounded-button text-[13px] font-semibold transition-all active:scale-95"
+      style={{
+        background: bg,
+        border,
+        color,
+        transitionTimingFunction: "var(--ease-spring)",
+        transitionDuration: "var(--duration-feedback)",
+        minHeight: "44px",
+      }}
+      aria-pressed={state !== "none"}
+    >
+      <span aria-hidden="true">{flag}</span>
+      <span>{team}</span>
+      {state !== "none" && (
+        <span
+          className="ml-0.5 text-[10px] font-bold px-1 py-0.5 rounded"
+          style={{
+            background: state === "first" ? "rgba(255,255,255,0.25)" : "var(--color-accent)",
+            color: "#fff",
+            lineHeight: 1,
+          }}
+        >
+          {state === "first" ? "1º" : "2º"}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Chip simples para mata-mata (selecionado / não)
 function TeamChips({
   teams,
   selected,
@@ -428,13 +579,19 @@ function TeamChips({
           <button
             key={t}
             onClick={() => onToggle(t)}
-            className="px-3 py-1.5 rounded-button text-[13px] font-semibold transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-button text-[13px] font-semibold transition-all active:scale-95"
             style={{
               background: isSelected ? "var(--color-accent)" : "var(--color-bg-secondary)",
               color: isSelected ? "#fff" : "var(--color-text-secondary)",
+              border: "1.5px solid transparent",
+              transitionTimingFunction: "var(--ease-spring)",
+              transitionDuration: "var(--duration-feedback)",
+              minHeight: "44px",
             }}
+            aria-pressed={isSelected}
           >
-            {t}
+            <span aria-hidden="true">{getFlag(t)}</span>
+            <span>{t}</span>
           </button>
         );
       })}
@@ -442,37 +599,44 @@ function TeamChips({
   );
 }
 
-function TeamSelect({
-  value,
-  options,
-  excluded,
-  placeholder,
-  onChange,
-  aria,
+// Chip do pódio (campeão destacado com gold)
+function PodiumChip({
+  team,
+  selected,
+  label,
+  onClick,
 }: {
-  value: string;
-  options: string[];
-  excluded: string;
-  placeholder: string;
-  onChange: (t: string) => void;
-  aria: string;
+  team: string;
+  selected: boolean;
+  label: string;
+  onClick: () => void;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="flex-1 py-2 px-2 rounded-button text-[12px] outline-none"
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-3 rounded-button text-[15px] font-bold transition-all active:scale-95"
       style={{
-        background: "var(--color-bg-secondary)",
-        color: value ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-        border: "none",
+        background: selected ? "var(--color-accent)" : "var(--color-bg-secondary)",
+        color: selected ? "#fff" : "var(--color-text-secondary)",
+        border: selected ? "2px solid var(--color-gold)" : "2px solid transparent",
+        boxShadow: selected ? "var(--shadow-gold)" : "none",
+        transitionTimingFunction: "var(--ease-spring)",
+        transitionDuration: "var(--duration-feedback)",
+        minHeight: "52px",
       }}
-      aria-label={aria}
+      aria-pressed={selected}
+      aria-label={`${label}: ${team}`}
     >
-      <option value="">{placeholder}</option>
-      {options.map((t) => (
-        <option key={t} value={t} disabled={t === excluded}>{t}</option>
-      ))}
-    </select>
+      <span className="text-xl" aria-hidden="true">{getFlag(team)}</span>
+      <span>{team}</span>
+      {selected && (
+        <span
+          className="ml-1 text-[11px] font-bold px-2 py-0.5 rounded-badge"
+          style={{ background: "var(--color-gold)", color: "#1D1D1F" }}
+        >
+          {label}
+        </span>
+      )}
+    </button>
   );
 }

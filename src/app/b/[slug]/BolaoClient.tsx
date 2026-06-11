@@ -106,21 +106,23 @@ export default function BolaoClient({
 
   const doneCount = matches.filter((m) => localPreds[m.id] !== undefined).length;
 
+  const tabs: Tab[] = ["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])];
+  const tabLabels: Record<Tab, string> = { palpites: "Palpites", ranking: "Ranking", bracket: "Bracket" };
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "var(--color-bg-primary)" }}>
-      {/* Header */}
-      <header className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[22px] font-bold" style={{ color: "var(--color-text-primary)" }}>
-              {pool.name}
-            </h1>
-          </div>
-          <div className="flex gap-2">
+      {/* Header — max-w-lg centrado */}
+      <header className="px-4 pt-safe pt-4 pb-3">
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
+          <h1 className="text-[22px] font-bold truncate" style={{ color: "var(--color-text-primary)" }}>
+            {pool.name}
+          </h1>
+          <div className="flex gap-2 flex-shrink-0">
             <button
               onClick={() => router.push(`/b/${pool.slug}/convite`)}
               className="px-3 py-2 rounded-button text-[13px] font-semibold"
               style={{ background: "var(--color-bg-secondary)", color: "var(--color-accent)" }}
+              aria-label="Convidar participantes"
             >
               Convidar
             </button>
@@ -129,6 +131,7 @@ export default function BolaoClient({
                 onClick={() => router.push(`/b/${pool.slug}/admin`)}
                 className="px-3 py-2 rounded-button text-[13px] font-semibold"
                 style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}
+                aria-label="Administrar bolão"
               >
                 Admin
               </button>
@@ -137,44 +140,61 @@ export default function BolaoClient({
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="px-4 flex gap-1 border-b" style={{ borderColor: "var(--color-bg-secondary)" }}>
-        {(["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="py-3 px-4 text-[15px] font-semibold capitalize border-b-2 transition-colors"
-            style={{
-              borderColor: tab === t ? "var(--color-accent)" : "transparent",
-              color: tab === t ? "var(--color-accent)" : "var(--color-text-secondary)",
-            }}
+      {/* Tabs — segmented control iOS style */}
+      <div className="px-4 pb-3">
+        <div className="max-w-lg mx-auto">
+          <div
+            className="flex p-1 rounded-button"
+            style={{ background: "var(--color-bg-secondary)" }}
+            role="tablist"
+            aria-label="Navegação do bolão"
           >
-            {t === "palpites" ? "Palpites" : t === "ranking" ? "Ranking" : "Bracket"}
-          </button>
-        ))}
+            {tabs.map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className="flex-1 py-1.5 rounded text-[13px] font-semibold transition-all"
+                style={{
+                  background: tab === t ? "var(--color-bg-card)" : "transparent",
+                  color: tab === t ? "var(--color-accent)" : "var(--color-text-secondary)",
+                  boxShadow: tab === t ? "var(--shadow-card)" : "none",
+                  transitionTimingFunction: "var(--ease-spring)",
+                  transitionDuration: "var(--duration-feedback)",
+                  borderRadius: "6px",
+                }}
+              >
+                {tabLabels[t]}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto pb-24">
         {tab === "palpites" && (
           <div className="flex flex-col">
-            {/* Card de palpites especiais (sempre no topo da aba palpites) */}
+            {/* Card de palpites especiais */}
             {hasSpecials && (
-              <div className="px-4 pt-4">
-                <SpecialBetsCard
-                  poolId={pool.id}
-                  ruleset={ruleset}
-                  teams={teams}
-                  groupTeams={groupTeams}
-                  deadlineAt={deadlineAt}
-                  initialBets={initialSpecialBets}
-                  specialResults={specialResults}
-                  specialScores={specialScores}
-                />
+              <div className="px-4 pt-1 pb-1">
+                <div className="max-w-lg mx-auto">
+                  <SpecialBetsCard
+                    poolId={pool.id}
+                    ruleset={ruleset}
+                    teams={teams}
+                    groupTeams={groupTeams}
+                    deadlineAt={deadlineAt}
+                    initialBets={initialSpecialBets}
+                    specialResults={specialResults}
+                    specialScores={specialScores}
+                  />
+                </div>
               </div>
             )}
 
-            {/* Palpites de placar — escondidos se specials_only */}
+            {/* Palpites de placar */}
             {!isSpecialsOnly && (
               <PalpitesTab
                 matches={matches}
@@ -191,11 +211,12 @@ export default function BolaoClient({
               />
             )}
 
-            {/* Specials only: sem jogos para palpitar */}
+            {/* Empty state: specials_only sem specials */}
             {isSpecialsOnly && !hasSpecials && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <p className="text-[15px]" style={{ color: "var(--color-text-secondary)" }}>
-                  Este bolão é apenas de classificação.
+              <div className="max-w-lg mx-auto flex flex-col items-center justify-center py-16 gap-3 px-4">
+                <p className="text-[34px]" aria-hidden="true">🏟️</p>
+                <p className="text-[15px] text-center" style={{ color: "var(--color-text-secondary)" }}>
+                  Este bolão é apenas de classificação. Nenhum jogo para palpitar.
                 </p>
               </div>
             )}
@@ -206,15 +227,17 @@ export default function BolaoClient({
         )}
         {tab === "bracket" && bracketEnabled && (
           <div className="px-4 py-3">
-            <BracketCard
-              poolId={pool.id}
-              ruleset={ruleset}
-              teams={teams}
-              groupTeams={groupTeams}
-              myBracket={myBracket}
-              lockAt={bracketLockAt}
-              locked={bracketLocked}
-            />
+            <div className="max-w-lg mx-auto">
+              <BracketCard
+                poolId={pool.id}
+                ruleset={ruleset}
+                teams={teams}
+                groupTeams={groupTeams}
+                myBracket={myBracket}
+                lockAt={bracketLockAt}
+                locked={bracketLocked}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -289,27 +312,30 @@ function PalpitesTab({
   return (
     <div className="flex flex-col">
       {/* Sticky progress */}
-      <div className="sticky top-0 z-10 px-4 py-2 flex items-center justify-between"
+      <div className="sticky top-0 z-10 px-4 py-2"
         style={{ background: "var(--color-bg-primary)", borderBottom: "1px solid var(--color-bg-secondary)" }}>
-        <span className="text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
-          {doneCount} de {total} palpites feitos
-        </span>
-        <div className="flex-1 mx-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-bg-secondary)" }}>
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: total > 0 ? `${(doneCount / total) * 100}%` : "0%",
-              background: "var(--color-accent)",
-              transitionTimingFunction: "var(--ease-spring)",
-            }}
-          />
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <span className="text-[13px] font-medium flex-shrink-0" style={{ color: "var(--color-text-secondary)" }}>
+            {doneCount}/{total}
+          </span>
+          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-bg-secondary)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: total > 0 ? `${(doneCount / total) * 100}%` : "0%",
+                background: "var(--color-accent)",
+                transitionTimingFunction: "var(--ease-spring)",
+              }}
+            />
+          </div>
+          <span className="text-[13px] font-semibold tabular-nums flex-shrink-0" style={{ color: "var(--color-accent)" }}>
+            {total > 0 ? Math.round((doneCount / total) * 100) : 0}%
+          </span>
         </div>
-        <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--color-accent)" }}>
-          {total > 0 ? Math.round((doneCount / total) * 100) : 0}%
-        </span>
       </div>
 
       <div className="px-4 py-3 flex flex-col gap-3">
+        <div className="max-w-lg mx-auto w-full flex flex-col gap-3">
         {matches.map((m) => {
           const urgency = deadlineUrgency(m.kickoff_at, deadlineMinutes);
           const isBlocked = urgency === "closed" || m.status === "live" || m.status === "finished";
@@ -332,6 +358,7 @@ function PalpitesTab({
             />
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -462,7 +489,7 @@ function MatchCard({
       {/* Footer: deadline ou pontos */}
       <div className="flex items-center justify-between">
         {match.status === "finished" && score ? (
-          <span className="text-[13px] font-semibold" style={{ color: "var(--color-gold)" }}>
+          <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--color-gold)" }}>
             +{score.points} pts
           </span>
         ) : match.status === "finished" ? (
@@ -475,17 +502,20 @@ function MatchCard({
             aria-live="polite"
             style={{ color: deadlineColor }}
           >
-            🔒 {countdown}
+            Fecha {countdown}
           </span>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
-            🔒 Encerrado
+            Encerrado
           </span>
         )}
 
         {match.status === "live" && (
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-badge text-white animate-pulse"
-            style={{ background: "var(--color-live)" }}>
+          <span
+            className="text-[11px] font-bold px-2 py-0.5 rounded-badge text-white motion-safe:animate-pulse"
+            style={{ background: "var(--color-live)" }}
+            aria-label="Ao vivo"
+          >
             AO VIVO
           </span>
         )}
@@ -543,11 +573,11 @@ function saveStateLabelStr(
   isBlocked: boolean,
   hasPred: boolean
 ): string {
-  if (isBlocked) return hasPred ? "🔒 Salvo" : "🔒 Encerrado";
-  if (state === "saved") return "✓ Salvo";
+  if (isBlocked) return hasPred ? "Salvo" : "";
+  if (state === "saved") return "Salvo";
   if (state === "saving") return "Salvando…";
   if (state === "error") return "Prazo encerrado";
-  if (hasPred) return "✓";
+  if (hasPred) return "Salvo";
   return "";
 }
 
@@ -562,83 +592,121 @@ function RankingTab({
   currentUserId: string;
   bracketEnabled?: boolean;
 }) {
+  const myRow = ranking.find((r) => r.user_id === currentUserId);
+  const myIndex = ranking.findIndex((r) => r.user_id === currentUserId);
+
   if (ranking.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-4xl">🏆</span>
-        <p className="text-[15px]" style={{ color: "var(--color-text-secondary)" }}>
-          Nenhum ponto ainda. Os jogos ainda não começaram.
+      <div className="max-w-lg mx-auto px-4 flex flex-col items-center justify-center py-16 gap-3">
+        <p className="text-[34px]" aria-hidden="true" style={{ fontVariantEmoji: "text" }}>—</p>
+        <p className="text-[17px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          Nenhum ponto ainda
+        </p>
+        <p className="text-[15px] text-center" style={{ color: "var(--color-text-secondary)" }}>
+          O ranking aparece assim que os jogos terminarem.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-3 flex flex-col gap-2">
-      {ranking.map((row) => {
-        const isMe = row.user_id === currentUserId;
-        const medal =
-          row.position === 1 ? "🥇"
-          : row.position === 2 ? "🥈"
-          : row.position === 3 ? "🥉"
-          : null;
-
-        return (
+    <div className="px-4 py-3">
+      <div className="max-w-lg mx-auto flex flex-col gap-2">
+        {/* Posição do usuário (sticky se fora da viewport) — simplificado: mostrar no topo se não estiver top 3 */}
+        {myRow && myIndex > 4 && (
           <div
-            key={row.user_id}
-            className="rounded-card p-4 flex items-center gap-3"
+            className="rounded-card p-3 flex items-center gap-3 mb-1"
             style={{
               background: "var(--color-bg-card)",
-              boxShadow: isMe ? "var(--shadow-gold)" : "var(--shadow-card)",
-              border: isMe ? "1.5px solid var(--color-gold)" : "1.5px solid transparent",
+              boxShadow: "var(--shadow-gold)",
+              border: "1.5px solid var(--color-gold)",
             }}
           >
-            {/* Posição */}
-            <div className="w-8 text-center">
-              {medal ? (
-                <span className="text-xl">{medal}</span>
-              ) : (
-                <span className="tabular-nums text-[15px] font-semibold"
-                  style={{ color: "var(--color-text-secondary)" }}>
-                  {row.position}
-                </span>
-              )}
-            </div>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-badge"
+              style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}>
+              Você
+            </span>
+            <span className="tabular-nums text-[15px] font-bold flex-shrink-0"
+              style={{ color: "var(--color-text-secondary)" }}>
+              #{myRow.position}
+            </span>
+            <span className="flex-1 text-[15px] font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
+              {myRow.name}
+            </span>
+            <span className="tabular-nums text-[15px] font-bold" style={{ color: "var(--color-accent)" }}>
+              {myRow.points} pts
+            </span>
+          </div>
+        )}
 
-            {/* Avatar */}
+        {ranking.map((row) => {
+          const isMe = row.user_id === currentUserId;
+          const pos = row.position;
+          // Medalha visual sem emoji
+          const medalBg =
+            pos === 1 ? "#FFD60A"
+            : pos === 2 ? "#C0C0C0"
+            : pos === 3 ? "#CD7F32"
+            : "var(--color-bg-secondary)";
+          const medalColor =
+            pos <= 3 ? "#1D1D1F" : "var(--color-text-secondary)";
+
+          return (
             <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold text-white flex-shrink-0"
-              style={{ background: isMe ? "var(--color-accent)" : "var(--color-text-secondary)" }}
+              key={row.user_id}
+              className="rounded-card p-4 flex items-center gap-3 transition-all"
+              style={{
+                background: "var(--color-bg-card)",
+                boxShadow: isMe ? "var(--shadow-gold)" : "var(--shadow-card)",
+                border: isMe ? "1.5px solid var(--color-gold)" : "1.5px solid transparent",
+              }}
             >
-              {row.name.charAt(0).toUpperCase()}
-            </div>
+              {/* Posição */}
+              <div
+                className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0"
+                style={{ background: medalBg }}
+              >
+                <span className="tabular-nums text-[12px] font-bold" style={{ color: medalColor }}>
+                  {pos}
+                </span>
+              </div>
 
-            {/* Nome */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
-                {row.name}
-                {isMe && (
-                  <span className="ml-1 text-[11px] font-medium" style={{ color: "var(--color-accent)" }}>
-                    (você)
-                  </span>
+              {/* Avatar inicial */}
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-bold text-white flex-shrink-0"
+                style={{ background: isMe ? "var(--color-accent)" : "var(--color-bg-secondary)" }}
+                aria-hidden="true"
+              >
+                <span style={{ color: isMe ? "#fff" : "var(--color-text-secondary)" }}>
+                  {row.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+
+              {/* Nome */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
+                  {row.name}
+                  {isMe && (
+                    <span className="ml-1 text-[11px] font-medium" style={{ color: "var(--color-accent)" }}>
+                      você
+                    </span>
+                  )}
+                </p>
+                {bracketEnabled && (row.bracket_points ?? 0) > 0 && (
+                  <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Jogos {row.game_points ?? 0} · Bracket {row.bracket_points}
+                  </p>
                 )}
-              </p>
-            </div>
+              </div>
 
-            {/* Pontos */}
-            <div className="flex flex-col items-end">
-              <span className="tabular-nums text-[17px] font-bold" style={{ color: "var(--color-accent)" }}>
+              {/* Pontos */}
+              <span className="tabular-nums text-[17px] font-bold flex-shrink-0" style={{ color: "var(--color-accent)" }}>
                 {row.points} pts
               </span>
-              {bracketEnabled && (row.bracket_points ?? 0) > 0 && (
-                <span className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
-                  Jogos {row.game_points ?? 0} · Bracket {row.bracket_points}
-                </span>
-              )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

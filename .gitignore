@@ -1,0 +1,57 @@
+# --- Secrets (NUNCA commitar) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*
+*token*
+*.api_key
+.odds_api_key
+.telegram_token
+.auth_token
+browser_token.json
+*.secret
+
+# --- Modelos & dados pesados ---
+*.joblib
+*.pkl
+*.h5
+*.onnx
+*.pt
+*.bin
+*.safetensors
+*.parquet
+data/raw/
+data/snapshots/
+data/cache/
+data/*.csv
+checkpoints/
+models/*.joblib
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# --- Node ---
+node_modules/
+dist/
+build/
+.next/
+
+# --- Logs & OS ---
+*.log
+logs/
+.DS_Store
+.trash/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp

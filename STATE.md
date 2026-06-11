@@ -1,6 +1,18 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-11 (MVP rodando, smoke test e2e validado)
+**Atualizado:** 2026-06-11 14:45 (v1.1 Bracket pré-Copa no ar)
+
+## v1.1 — Bracket pré-Copa (2026-06-11, tarde)
+
+Pedido do Victor: premiar quem acerta a classificação ANTES da Copa (classificados de grupo → oitavas → ... → campeão), com pontuação por fase, opcional e editável — somando com os bônus de placar exato pra permitir estratégias diferentes.
+
+- **Spec:** SPEC.md v1.1.0 — seção "Bracket pré-Copa", ruleset `advance_predictions` (10 valores editáveis, 0 desliga), pontua por "seleção presente na fase" (não confronto exato), cumulativo, lock server-side no kickoff do 1º jogo
+- **Defaults:** group_qualified 2 / position_exact +1 / r16 2 / qf 3 / sf 5 / final 8 / 4º 4 / 3º 8 / vice 10 / campeão 25 (~60-80 pts p/ bracket bom ≈ 6-8 placares exatos — não decide o bolão sozinho)
+- **Scoring puro:** `src/lib/scoring/bracket.ts` (deriveBracketOutcome + scoreBracket) — 16 testes; agente também entregou specials (`specials.ts`, 15 testes). **107/107 testes verdes**, `next build` limpo (fix: tsconfig `target: ES2017` — antes ES5 implícito quebrava iteração de Map/Set)
+- **Migration aplicada** (`bracket_predictions_v1_1` via MCP): tabelas `teams` (48 seleções, grupos A–L derivados de matches.group_label), `bracket_predictions` (RLS: alheio só pós-lock via `_pool_first_kickoff`), `bracket_scores` (SELECT público) + RPCs `submit_bracket`/`get_pool_brackets`/`save_bracket_scores`. ⚠️ Migration do agente foi corrigida antes de aplicar: policies `auth.uid()` (incompatível com identidade leve — ranking leria vazio) trocadas pelo padrão real do banco; INSERT duplicado/bugado de teams removido; lock unificado na helper `_pool_first_kickoff`
+- **UI/API:** tab Bracket (BracketCard.tsx, só se habilitado), toggle + steppers no wizard /criar, POST /api/brackets (422 bracket_locked), GET /api/pools/[id]/brackets, recálculo na rota de resultado, ranking com split Jogos · Bracket
+- **Smoke e2e real** (porta 3017): perfil → pool com bracket on → submit bracket → `{ok:true}` → GET retorna my_bracket + lock_at, all_brackets null pré-lock. Dados de teste limpos
+- ⏰ **Lock global do bracket: HOJE 16:00 (Londrina)** — kickoff México, jogo de abertura (19:00 UTC)
 
 ## Posição atual
 

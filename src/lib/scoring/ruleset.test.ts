@@ -45,9 +45,21 @@ describe("DEFAULT_RULESET", () => {
     expect(DEFAULT_RULESET.missing_prediction.policy).toBe("zero");
   });
 
-  it("champion special bet is enabled with 20 points by default", () => {
+  it("champion special bet is enabled with 50 points by default", () => {
     expect(DEFAULT_RULESET.special_bets.champion.enabled).toBe(true);
-    expect(DEFAULT_RULESET.special_bets.champion.points).toBe(20);
+    expect(DEFAULT_RULESET.special_bets.champion.points).toBe(50);
+  });
+
+  it("qualifiers special bet is disabled by default with recommended values", () => {
+    expect(DEFAULT_RULESET.special_bets.qualifiers.enabled).toBe(false);
+    expect(DEFAULT_RULESET.special_bets.qualifiers.points_per_team).toBe(2);
+    expect(DEFAULT_RULESET.special_bets.qualifiers.exact_position_bonus).toBe(1);
+  });
+
+  it("early_bird is disabled by default with recommended values", () => {
+    expect(DEFAULT_RULESET.early_bird.enabled).toBe(false);
+    expect(DEFAULT_RULESET.early_bird.days_before).toBe(4);
+    expect(DEFAULT_RULESET.early_bird.points).toBe(2);
   });
 
   it("top_scorer special bet is disabled by default", () => {

@@ -2,6 +2,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/session";
 import BolaoClient from "./BolaoClient";
 import { redirect } from "next/navigation";
+import { parseRuleset } from "@/lib/scoring";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -45,8 +46,11 @@ export default async function BolaoPage({ params }: Props) {
     redirect(`/b/${slug}/entrar`);
   }
 
-  // Buscar jogos do escopo
+  const ruleset = parseRuleset(pool.ruleset);
   const scope = pool.scope as { type: string; match_ids?: string[] };
+  const isSpecialsOnly = scope.type === "specials_only";
+
+  // Buscar jogos do escopo (para specials_only ainda precisamos para derivar times/grupos e deadline)
   let matchQuery = supabase
     .from("matches")
     .select("id, stage, group_label, home_team, away_team, kickoff_at, status, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner")
@@ -57,63 +61,210 @@ export default async function BolaoPage({ params }: Props) {
   }
 
   const { data: matches } = await matchQuery;
+  const matchList = matches ?? [];
 
-  // Buscar palpites do usuário (só os próprios)
-  const { data: predictions } = await supabase
-    .from("predictions")
-    .select("id, match_id, payload, submitted_at")
+  // ── Dados especiais ───────────────────────────────────────────────────────
+
+  // Meus palpites especiais (via route que chama RPC security definer)
+  let initialSpecialBets: { bet_type: string; value: string; submitted_at: string }[] = [];
+  if (ruleset.special_bets.champion.enabled || ruleset.special_bets.qualifiers.enabled) {
+    const { data: specialBetsRaw } = await supabase.rpc("my_special_bets", {
+      p_user: session.userId,
+      p_secret: session.secret,
+      p_pool: pool.id,
+    });
+    initialSpecialBets = (specialBetsRaw ?? []) as typeof initialSpecialBets;
+  }
+
+  // Resultados publicados (legíveis pelo anon após settlement)
+  const { data: specialResultsRaw } = await supabase
+    .from("pool_special_results")
+    .select("bet_type, value, settled_at")
+    .eq("pool_id", pool.id);
+  const specialResults = (specialResultsRaw ?? []) as {
+    bet_type: string;
+    value: string;
+    settled_at: string;
+  }[];
+
+  // Pontuação especial do usuário atual
+  const { data: specialScoresRaw } = await supabase
+    .from("special_bet_scores")
+    .select("bet_type, points, breakdown")
     .eq("pool_id", pool.id)
     .eq("user_id", session.userId);
+  const specialScores = (specialScoresRaw ?? []) as {
+    bet_type: string;
+    points: number;
+    breakdown: Record<string, number>;
+  }[];
 
-  // Buscar pontuações
-  const predictionIds = (predictions ?? []).map((p) => p.id);
-  const { data: scores } = predictionIds.length
-    ? await supabase
-        .from("prediction_scores")
-        .select("prediction_id, points, breakdown")
-        .in("prediction_id", predictionIds)
-    : { data: [] };
+  // ── Times e grupos (para o card de especiais) ────────────────────────────
 
-  // Ranking: agregar prediction_scores por usuário neste pool
+  // Times únicos excluindo "A definir"
+  const teamsSet = new Set<string>();
+  const groupTeams: Record<string, string[]> = {};
+  for (const m of matchList) {
+    for (const t of [m.home_team, m.away_team]) {
+      if (t && t !== "A definir") {
+        teamsSet.add(t);
+        if (m.group_label) {
+          if (!groupTeams[m.group_label]) groupTeams[m.group_label] = [];
+          if (!groupTeams[m.group_label].includes(t)) groupTeams[m.group_label].push(t);
+        }
+      }
+    }
+  }
+  const teams = Array.from(teamsSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  // Deadline dos especiais = kickoff do primeiro jogo do escopo
+  const deadlineAt = matchList.length > 0
+    ? matchList.reduce((min, m) => m.kickoff_at < min ? m.kickoff_at : min, matchList[0].kickoff_at)
+    : null;
+
+  // ── Palpites de placar (só se não for specials_only) ─────────────────────
+
+  const predictions = isSpecialsOnly ? [] : await (async () => {
+    const { data } = await supabase
+      .from("predictions")
+      .select("id, match_id, payload, submitted_at")
+      .eq("pool_id", pool.id)
+      .eq("user_id", session.userId);
+    return data ?? [];
+  })();
+
+  const predictionIds = predictions.map((p) => p.id);
+  const scores = !isSpecialsOnly && predictionIds.length ? await (async () => {
+    const { data } = await supabase
+      .from("prediction_scores")
+      .select("prediction_id, points, breakdown")
+      .in("prediction_id", predictionIds);
+    return data ?? [];
+  })() : [];
+
+  // ── Ranking: prediction_scores + special_bet_scores + bracket_scores ────
+
+  // Pontos de palpites de placar por usuário
   const { data: rankingRaw } = await supabase
     .from("predictions")
     .select("user_id, prediction_scores(points), profiles(name)")
     .eq("pool_id", pool.id);
 
-  // Construir ranking agregado
-  const rankMap = new Map<string, { name: string; points: number }>();
+  // Pontos especiais por usuário neste pool
+  const { data: allSpecialScoresRaw } = await supabase
+    .from("special_bet_scores")
+    .select("user_id, points")
+    .eq("pool_id", pool.id);
+
+  const specialPtsByUser = new Map<string, number>();
+  for (const row of allSpecialScoresRaw ?? []) {
+    const uid = row.user_id as string;
+    const pts = (row.points as number) ?? 0;
+    specialPtsByUser.set(uid, (specialPtsByUser.get(uid) ?? 0) + pts);
+  }
+
+  // Pontos de bracket por usuário (se feature habilitada)
+  const bracketEnabled = ruleset.advance_predictions?.enabled === true;
+  const bracketPtsByUser = new Map<string, number>();
+  if (bracketEnabled) {
+    const { data: bracketScoresRaw } = await supabase
+      .from("bracket_scores")
+      .select("user_id, points")
+      .eq("pool_id", pool.id);
+    for (const row of bracketScoresRaw ?? []) {
+      bracketPtsByUser.set(row.user_id as string, (row.points as number) ?? 0);
+    }
+  }
+
+  // Agregar prediction_scores por usuário
+  const rankMap = new Map<string, { name: string; gamePoints: number; bracketPoints: number }>();
   for (const row of rankingRaw ?? []) {
     const uid = row.user_id as string;
-    // Supabase join retorna array para relations
     const profilesRaw = row.profiles as unknown;
     const name = Array.isArray(profilesRaw)
       ? ((profilesRaw[0] as { name: string } | undefined)?.name ?? "—")
       : ((profilesRaw as { name: string } | null)?.name ?? "—");
-    // prediction_scores pode ser array ou objeto
     const scoresRaw = row.prediction_scores as unknown;
     const pts = Array.isArray(scoresRaw)
       ? (scoresRaw as { points: number }[]).reduce((s, x) => s + (x.points ?? 0), 0)
       : ((scoresRaw as { points: number } | null)?.points ?? 0);
 
     const existing = rankMap.get(uid);
-    rankMap.set(uid, { name, points: (existing?.points ?? 0) + pts });
+    rankMap.set(uid, { name, gamePoints: (existing?.gamePoints ?? 0) + pts, bracketPoints: existing?.bracketPoints ?? 0 });
+  }
+
+  // Adicionar pontos especiais ao rankMap
+  for (const [uid, specialPts] of Array.from(specialPtsByUser.entries())) {
+    const existing = rankMap.get(uid);
+    if (existing) {
+      rankMap.set(uid, { ...existing, gamePoints: existing.gamePoints + specialPts });
+    }
+  }
+
+  // Adicionar pontos de bracket ao rankMap
+  for (const [uid, bPts] of Array.from(bracketPtsByUser.entries())) {
+    const existing = rankMap.get(uid);
+    if (existing) {
+      rankMap.set(uid, { ...existing, bracketPoints: bPts });
+    }
   }
 
   const ranking = Array.from(rankMap.entries())
-    .map(([user_id, { name, points }]) => ({ user_id, name, points }))
+    .map(([user_id, { name, gamePoints, bracketPoints }]) => ({
+      user_id,
+      name,
+      points: gamePoints + bracketPoints,
+      game_points: gamePoints,
+      bracket_points: bracketPoints,
+    }))
     .sort((a, b) => b.points - a.points)
     .map((r, i) => ({ ...r, position: i + 1 }));
+
+  // ── Bracket do usuário atual (se feature habilitada) ─────────────────────
+  let myBracket: Record<string, unknown> | null = null;
+  let bracketLockAt: string | null = null;
+  let bracketLocked = false;
+
+  if (bracketEnabled) {
+    const { data: bracketRpc } = await supabase.rpc("get_pool_brackets", {
+      p_user: session.userId,
+      p_secret: session.secret,
+      p_pool: pool.id,
+    });
+    if (bracketRpc) {
+      const b = bracketRpc as {
+        my_bracket?: { payload: Record<string, unknown> };
+        lock_at?: string;
+        locked?: boolean;
+      };
+      myBracket = b.my_bracket?.payload ?? null;
+      bracketLockAt = b.lock_at ?? null;
+      bracketLocked = b.locked ?? false;
+    }
+  }
 
   return (
     <BolaoClient
       pool={pool}
-      matches={matches ?? []}
-      predictions={predictions ?? []}
-      scores={scores ?? []}
+      ruleset={ruleset}
+      matches={matchList}
+      predictions={predictions}
+      scores={scores}
       ranking={ranking}
       currentUserId={session.userId}
       isOwner={membership.role === "owner"}
-      deadlineMinutes={(pool.ruleset as { deadline?: { minutes_before?: number } })?.deadline?.minutes_before ?? 15}
+      deadlineMinutes={ruleset.deadline.minutes_before}
+      isSpecialsOnly={isSpecialsOnly}
+      teams={teams}
+      groupTeams={groupTeams}
+      deadlineAt={deadlineAt}
+      initialSpecialBets={initialSpecialBets}
+      specialResults={specialResults}
+      specialScores={specialScores}
+      bracketEnabled={bracketEnabled}
+      myBracket={myBracket}
+      bracketLockAt={bracketLockAt}
+      bracketLocked={bracketLocked}
     />
   );
 }

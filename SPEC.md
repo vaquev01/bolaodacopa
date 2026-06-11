@@ -1,7 +1,7 @@
 ---
 title: "Bolão Copa 2026 — Plataforma de Bolões Configuráveis"
 type: prd + tech-spec
-version: "1.0.0"
+version: "1.1.0"
 date: "2026-06-11"
 author: "Keli (multi-agente: core-brainstormer + core-researcher + cre-ux)"
 status: draft
@@ -80,9 +80,12 @@ A Copa 2026 (EUA/Canadá/México) começa em **junho/2026** — estamos a dias d
 8. Resultados: entrada manual pelo organizador (MVP) com log de alterações
 9. Bolão privado por default; organizador remove participante; critérios de desempate definidos na criação
 
+**Must (v1.1 — Bracket pré-Copa):**
+10. **Bracket pré-Copa (advance predictions)** — modo opcional por bolão: antes do 1º jogo da Copa, cada participante preenche a classificação completa (1º/2º de cada grupo + melhores 3ºs → 32 classificados → oitavas-de-32 → oitavas → quartas → semis → finalistas → 3º/4º → campeão). Pontuação **por fase, editável** (acertar o campeão vale mais que acertar um semifinalista, que vale mais que um classificado de grupo). Trava server-side no kickoff do 1º jogo da Copa. Detalhes na seção "Bracket pré-Copa" abaixo.
+
 **Should:**
 - Multiplicadores por fase (oitavas 1.5x … final 3x — fatores editáveis)
-- Bônus pré-copa: campeão, artilheiro (on/off + pontos editáveis)
+- Bônus pré-copa: artilheiro (on/off + pontos editáveis) — campeão agora coberto pelo Bracket
 - API automática de resultados com override manual (híbrido)
 - Ranking por rodada/fase; edição de palpite até deadline (configurável)
 - Premiação informativa: texto livre + divisão percentual (ex 60/30/10) — **sem processar valores**
@@ -108,6 +111,36 @@ A Copa 2026 (EUA/Canadá/México) começa em **junho/2026** — estamos a dias d
 4. Jogo acontece → resultado entra (manual ou API) → pontos calculados pelo motor de regras → ranking atualiza
 5. Fim do escopo → vencedor declarado pelos critérios de desempate configurados
 
+## Bracket pré-Copa (advance predictions) — v1.1
+
+**Por quê:** não é justo quem acertou o campeão/semifinalistas ANTES da Copa começar valer o mesmo que quem só palpita jogo a jogo. O Bracket premia visão antecipada; o placar exato por jogo (já existente) premia precisão contínua. Dois caminhos estratégicos para buscar o título do bolão — e o balanceamento default mantém o máximo de gente com chance até o fim.
+
+**Como funciona:**
+1. Organizador liga o modo Bracket no wizard (opcional, off por default) e ajusta os pontos de cada fase se quiser (defaults recomendados).
+2. Antes do 1º jogo da Copa, cada participante preenche o bracket completo: 1º e 2º de cada um dos 12 grupos + 8 melhores 3ºs → 32 classificados → quem passa em cada confronto (32-avos → oitavas → quartas → semis) → finalistas, 3º lugar e campeão.
+3. **Trava server-side no kickoff do 1º jogo da Copa** (não no deadline por jogo). Quem entra no bolão depois disso não palpita bracket — só compete pelos jogos.
+4. Conforme as fases reais se resolvem, cada seleção corretamente prevista **naquela fase** rende os pontos da fase (independente do confronto exato — chaveamento real pode divergir do previsto). Acertos são cumulativos: quem cravou o campeão pontua em todas as fases que ele atravessou.
+5. Posições finais exatas (campeão, vice, 3º, 4º) têm pontuação própria, maior.
+
+**Pontuação por fase (tudo editável, 0 desliga a linha):**
+
+| Acerto | Default | Observação |
+|---|---|---|
+| Classificado aos 32 (qualquer posição) | 2 | por seleção |
+| Posição exata no grupo (1º ou 2º) | +1 | bônus por seleção |
+| Presente nas oitavas (R16) | 2 | por seleção |
+| Presente nas quartas | 3 | por seleção |
+| Presente nas semis | 5 | por seleção |
+| Finalista | 8 | por seleção |
+| 4º lugar exato | 4 | |
+| 3º lugar exato | 8 | |
+| Vice exato | 10 | |
+| **Campeão exato** | **25** | o acerto mais valioso do bolão |
+
+**Balanceamento (racional dos defaults):** um bracket muito bom (~60% de acerto) rende ~60–80 pts — equivalente a ~6–8 placares exatos. Forte o suficiente para premiar a previsão antecipada, fraco o suficiente para não decidir o bolão sozinho na fase de grupos: quem errou o bracket continua vivo via placares exatos (104 jogos × até 10 pts). Organizador ajusta os pesos para o estilo do grupo dele.
+
+**UI:** tela própria "Bracket" (tab no bolão), preenchimento guiado grupo a grupo → mata-mata montado automaticamente a partir das escolhas, com countdown para o lock. Pós-lock vira visualização comparativa (meu bracket × real × dos outros).
+
 ## Edge cases (decisões de produto)
 
 | Caso | Regra |
@@ -118,6 +151,9 @@ A Copa 2026 (EUA/Canadá/México) começa em **junho/2026** — estamos a dias d
 | Empate no ranking | Cadeia de desempate configurada na criação: nº de placares exatos → nº de vencedores → pontos no mata-mata → palpite de campeão → sorteio registrado |
 | Participante sem palpite | Zero pontos (default) ou palpite padrão 0x0 com penalidade (configurável) |
 | Organizador some | Transferência de ownership ou modo somente-leitura |
+| Entrou no bolão após início da Copa (Bracket on) | Não palpita bracket; compete só pelos jogos. Aviso claro na entrada |
+| Bracket incompleto no lock | Pontua só o que preencheu; fases vazias = zero |
+| Chaveamento real diverge do previsto | Pontua por "seleção presente na fase", não por confronto — palpite continua vivo |
 | Resultado errado inserido | Log imutável + janela de correção de 24h + recálculo automático do ranking |
 | Fuso horário | Deadlines em UTC no servidor, exibidos no fuso do participante |
 
@@ -250,10 +286,28 @@ CREATE TABLE prediction_scores (
   computed_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE pool_special_bets (        -- campeão, artilheiro (pré-copa)
+CREATE TABLE pool_special_bets (        -- artilheiro etc (pré-copa)
   pool_id UUID, user_id UUID, bet_type TEXT, value TEXT,
   submitted_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (pool_id, user_id, bet_type)
+);
+
+CREATE TABLE bracket_predictions (      -- v1.1: bracket completo pré-Copa
+  pool_id      UUID NOT NULL REFERENCES pools,
+  user_id      UUID NOT NULL,
+  payload      JSONB NOT NULL,          -- {groups:{A:["BRA","MEX"],...}, third_qualifiers:[...8],
+                                        --  r32_winners:[...16], r16_winners:[...8], qf_winners:[...4],
+                                        --  finalists:[...2], champion:"BRA", third_place:"FRA"}
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- server-side; escrita rejeitada após kickoff do 1º jogo
+  PRIMARY KEY (pool_id, user_id)
+);
+
+CREATE TABLE bracket_scores (           -- idempotente, recalculável a cada fase resolvida
+  pool_id UUID, user_id UUID,
+  points NUMERIC NOT NULL,
+  breakdown JSONB NOT NULL,             -- auditoria por fase: que seleção rendeu quantos pontos
+  computed_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (pool_id, user_id)
 );
 
 CREATE TABLE audit_log (                -- alterações de resultado/regras/remoções
@@ -285,7 +339,23 @@ CREATE TABLE audit_log (                -- alterações de resultado/regras/remo
   "edits": { "allowed": true },
   "late_predictions": { "policy": "blocked" },   // blocked|no_points|penalty {pct}
   "missing_prediction": { "policy": "zero" },
-  "special_bets": { "champion": {"enabled": true, "points": 20}, "top_scorer": {"enabled": false} },
+  "special_bets": { "top_scorer": {"enabled": false} },   // campeão migrou p/ advance_predictions
+  "advance_predictions": {           // v1.1 — Bracket pré-Copa (opcional)
+    "enabled": false,
+    "lock": "tournament_start",      // trava no kickoff do 1º jogo da Copa, server-side
+    "points": {
+      "group_qualified": 2,          // por seleção corretamente nos 32
+      "group_position_exact": 1,     // bônus por posição exata no grupo (1º/2º)
+      "r16": 2,                      // por seleção presente nas oitavas
+      "qf": 3,
+      "sf": 5,
+      "final": 8,                    // finalista correto
+      "fourth_place": 4,
+      "third_place": 8,
+      "runner_up": 10,
+      "champion": 25
+    }
+  },
   "extra_markets": [],               // could-have: [{type:"over_under", line:2.5, points:2}, ...]
   "tiebreakers": ["exact_scores", "winners", "knockout_points", "champion_bet", "lottery"]
 }
@@ -303,6 +373,8 @@ PUT  /api/pools/{id}/ruleset         → 409 se ruleset_locked_at
 POST /api/predictions                → {pool_id, match_id, payload} → 422 se pós-deadline (validado no DB)
 GET  /api/pools/{id}/standings       → ranking com desempates aplicados
 POST /api/matches/{id}/result        → owner/admin do sistema; grava + audit_log + recálculo
+POST /api/brackets                   → {pool_id, payload} → 422 bracket_locked se Copa já começou
+GET  /api/pools/{id}/brackets        → meu bracket (sempre) + dos outros (pós-lock)
 Errors padrão: 400 invalid_input | 401 | 403 not_member | 409 locked | 422 deadline_passed
 ```
 

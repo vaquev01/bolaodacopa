@@ -43,7 +43,8 @@ const MissingPredictionSchema = z.object({
 
 const ChampionBetSchema = z.object({
   enabled: z.boolean().default(true),
-  points: z.number().default(20),
+  // Campeão vale mais que qualquer jogo (final com placar exato = 30).
+  points: z.number().default(50),
 });
 
 const TopScorerBetSchema = z.object({
@@ -51,9 +52,47 @@ const TopScorerBetSchema = z.object({
   points: z.number().default(0),
 });
 
+// Classificados por grupo: palpite = 1º e 2º de cada grupo, feito antes da copa.
+const QualifiersBetSchema = z.object({
+  enabled: z.boolean().default(false),
+  points_per_team: z.number().default(2),
+  // Bônus extra se acertou também a posição (1º como 1º, 2º como 2º).
+  exact_position_bonus: z.number().default(1),
+});
+
 const SpecialBetsSchema = z.object({
   champion: ChampionBetSchema.default({}),
   top_scorer: TopScorerBetSchema.default({}),
+  qualifiers: QualifiersBetSchema.default({}),
+});
+
+// v1.1 — Bracket pré-Copa (advance predictions)
+const BracketPointsSchema = z.object({
+  group_qualified: z.number().default(2),
+  group_position_exact: z.number().default(1),
+  r16: z.number().default(2),
+  qf: z.number().default(3),
+  sf: z.number().default(5),
+  final: z.number().default(8),
+  fourth_place: z.number().default(4),
+  third_place: z.number().default(8),
+  runner_up: z.number().default(10),
+  champion: z.number().default(25),
+});
+
+const AdvancePredictionsSchema = z.object({
+  /** Liga/desliga o bracket pré-Copa. Default: false (retrocompatível). */
+  enabled: z.boolean().default(false),
+  /** Trava no kickoff do 1º jogo da Copa (tournament_start). */
+  lock: z.enum(["tournament_start"]).default("tournament_start"),
+  points: BracketPointsSchema.default({}),
+});
+
+// Bônus por palpite antecipado: feito >= days_before dias antes do jogo e nunca editado.
+const EarlyBirdSchema = z.object({
+  enabled: z.boolean().default(false),
+  days_before: z.number().default(4),
+  points: z.number().default(2),
 });
 
 const ExtraMarketSchema = z.object({
@@ -81,6 +120,8 @@ export const RulesetSchema = z.object({
   late_predictions: LatePredictionsSchema.default({}),
   missing_prediction: MissingPredictionSchema.default({}),
   special_bets: SpecialBetsSchema.default({}),
+  early_bird: EarlyBirdSchema.default({}),
+  advance_predictions: AdvancePredictionsSchema.default({}),
   extra_markets: z.array(ExtraMarketSchema).default([]),
   tiebreakers: z.array(TiebreakerSchema).default([
     "exact_scores",

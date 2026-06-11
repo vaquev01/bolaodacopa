@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/session";
-import { scorePrediction, parseRuleset, type Stage } from "@/lib/scoring";
+import {
+  scorePrediction,
+  earlyBirdBonus,
+  parseRuleset,
+  deriveBracketOutcome,
+  scoreBracket,
+  type Stage,
+  type BracketMatchInput,
+} from "@/lib/scoring";
 
 export async function POST(
   req: NextRequest,
@@ -77,7 +85,7 @@ export async function POST(
     // 2. Buscar o jogo atualizado
     const { data: matchData, error: matchError } = await supabase
       .from("matches")
-      .select("id, stage, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner, status")
+      .select("id, stage, kickoff_at, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner, status")
       .eq("id", matchId)
       .single();
 
@@ -130,13 +138,28 @@ export async function POST(
       status: "finished" as const,
     };
 
-    const predRows = predictions as { id: string; payload: unknown }[];
+    const predRows = predictions as {
+      id: string;
+      payload: unknown;
+      first_submitted_at: string;
+      edit_count: number;
+    }[];
+    const kickoffAt = matchData.kickoff_at as string;
     const rows = predRows.map((pred) => {
       const payload = pred.payload as { home: number; away: number };
       const { points, breakdown } = scorePrediction(ruleset, payload, match);
+      const bonus = earlyBirdBonus(
+        ruleset,
+        { first_submitted_at: pred.first_submitted_at, edit_count: pred.edit_count },
+        kickoffAt
+      );
+      if (bonus > 0) {
+        breakdown.early_bird = bonus;
+        breakdown.total = points + bonus;
+      }
       return {
         prediction_id: pred.id,
-        points,
+        points: points + bonus,
         breakdown,
       };
     });
@@ -152,6 +175,11 @@ export async function POST(
       return NextResponse.json({ ok: true, scored: 0, warn: scoresError.message });
     }
 
+    // 7. Se o pool tem advance_predictions habilitado, recalcular bracket scores
+    if (ruleset.advance_predictions.enabled) {
+      await recalcBracketScores(supabase, pool_id, session.userId, session.secret, ruleset);
+    }
+
     return NextResponse.json({ ok: true, scored: rows.length });
   } catch (err) {
     console.error("[matches/result] unexpected error:", err);
@@ -159,5 +187,82 @@ export async function POST(
       { error: "internal_error", message: "Erro interno." },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Recalcula bracket scores de todos os participantes do pool.
+ * Idempotente — pode ser chamada a qualquer momento.
+ */
+async function recalcBracketScores(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  poolId: string,
+  userId: string,
+  secret: string,
+  ruleset: ReturnType<typeof parseRuleset>
+) {
+  try {
+    // Buscar todos os matches para derivar o outcome atual
+    const { data: allMatches, error: matchesError } = await supabase
+      .from("matches")
+      .select("id, stage, group_label, home_team, away_team, score_home_90, score_away_90, status")
+      .order("kickoff_at", { ascending: true });
+
+    if (matchesError || !allMatches) {
+      console.error("[brackets/recalc] fetch matches error:", matchesError?.message);
+      return;
+    }
+
+    // Mapear para BracketMatchInput (group_label → group_code)
+    const matchInputs: BracketMatchInput[] = allMatches.map((m) => ({
+      id: m.id as string,
+      stage: m.stage as BracketMatchInput["stage"],
+      home_team: m.home_team as string,
+      away_team: m.away_team as string,
+      score_home_90: m.score_home_90 as number | null,
+      score_away_90: m.score_away_90 as number | null,
+      status: m.status as BracketMatchInput["status"],
+      group_code: (m.group_label as string | null) ?? undefined,
+    }));
+
+    const outcome = deriveBracketOutcome(matchInputs);
+
+    // Buscar todos os brackets do pool
+    const { data: brackets, error: bracketsError } = await supabase
+      .from("bracket_predictions")
+      .select("user_id, payload")
+      .eq("pool_id", poolId);
+
+    if (bracketsError || !brackets || brackets.length === 0) {
+      return; // Sem brackets = nada a recalcular
+    }
+
+    const bracketPoints = ruleset.advance_predictions.points;
+
+    // Calcular pontuação para cada bracket
+    const rows = brackets.map((b) => {
+      const payload = b.payload as Parameters<typeof scoreBracket>[1];
+      const { points, breakdown } = scoreBracket(bracketPoints, payload, outcome);
+      return {
+        user_id: b.user_id as string,
+        points,
+        breakdown,
+      };
+    });
+
+    // Salvar via RPC save_bracket_scores (idempotente)
+    const { error: saveError } = await supabase.rpc("save_bracket_scores", {
+      p_user: userId,
+      p_secret: secret,
+      p_pool: poolId,
+      p_rows: rows,
+    });
+
+    if (saveError) {
+      console.error("[brackets/recalc] save_bracket_scores error:", saveError.message);
+    }
+  } catch (err) {
+    // Não propagar erro — o resultado já foi salvo, bracket é complementar
+    console.error("[brackets/recalc] unexpected error:", err);
   }
 }

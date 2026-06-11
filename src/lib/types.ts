@@ -66,4 +66,8 @@ export interface StandingRow {
   name: string;
   points: number;
   position: number;
+  /** Pontos de palpites de jogo (prediction_scores + special_bet_scores) */
+  game_points?: number;
+  /** Pontos do bracket pré-Copa (bracket_scores) */
+  bracket_points?: number;
 }

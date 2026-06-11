@@ -18,3 +18,21 @@ export {
   type PredictionRow,
   type Standing,
 } from "./standings";
+export {
+  scoreChampion,
+  scoreGroupQualifiers,
+  earlyBirdBonus,
+  type GroupPicks,
+  type QualifiersResult,
+  type PredictionMeta,
+} from "./specials";
+export {
+  deriveBracketOutcome,
+  scoreBracket,
+  DEFAULT_BRACKET_POINTS,
+  type BracketPoints,
+  type BracketPayload,
+  type BracketOutcome,
+  type BracketScoreResult,
+  type BracketMatchInput,
+} from "./bracket";

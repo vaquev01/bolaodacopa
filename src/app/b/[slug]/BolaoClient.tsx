@@ -3,7 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Match, Prediction, PredictionScore, StandingRow } from "@/lib/types";
+import type { Ruleset } from "@/lib/scoring";
 import { formatKickoff, deadlineLabel, deadlineUrgency, getFlag } from "@/lib/utils";
+import SpecialBetsCard from "./SpecialBetsCard";
+import BracketCard from "./BracketCard";
 
 interface Pool {
   id: string;
@@ -13,21 +16,53 @@ interface Pool {
   status: string;
 }
 
+interface SpecialBet {
+  bet_type: string;
+  value: string;
+  submitted_at: string;
+}
+
+interface SpecialResult {
+  bet_type: string;
+  value: string;
+  settled_at: string;
+}
+
+interface SpecialScore {
+  bet_type: string;
+  points: number;
+  breakdown: Record<string, number>;
+}
+
 interface Props {
   pool: Pool;
+  ruleset: Ruleset;
   matches: Match[];
   predictions: Omit<Prediction, "pool_id" | "user_id">[];
   scores: PredictionScore[];
-  ranking: (StandingRow)[];
+  ranking: StandingRow[];
   currentUserId: string;
   isOwner: boolean;
   deadlineMinutes: number;
+  isSpecialsOnly: boolean;
+  teams: string[];
+  groupTeams: Record<string, string[]>;
+  deadlineAt: string | null;
+  initialSpecialBets: SpecialBet[];
+  specialResults: SpecialResult[];
+  specialScores: SpecialScore[];
+  // Bracket pré-Copa (v1.1)
+  bracketEnabled?: boolean;
+  myBracket?: Record<string, unknown> | null;
+  bracketLockAt?: string | null;
+  bracketLocked?: boolean;
 }
 
-type Tab = "palpites" | "ranking";
+type Tab = "palpites" | "ranking" | "bracket";
 
 export default function BolaoClient({
   pool,
+  ruleset,
   matches,
   predictions,
   scores,
@@ -35,9 +70,22 @@ export default function BolaoClient({
   currentUserId,
   isOwner,
   deadlineMinutes,
+  isSpecialsOnly,
+  teams,
+  groupTeams,
+  deadlineAt,
+  initialSpecialBets,
+  specialResults,
+  specialScores,
+  bracketEnabled = false,
+  myBracket = null,
+  bracketLockAt = null,
+  bracketLocked = false,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("palpites");
+
+  const hasSpecials = ruleset.special_bets.champion.enabled || ruleset.special_bets.qualifiers.enabled;
 
   // Mapa match_id → prediction payload local (para edição otimista)
   const [localPreds, setLocalPreds] = useState<Record<string, { home: number; away: number }>>(() => {
@@ -91,7 +139,7 @@ export default function BolaoClient({
 
       {/* Tabs */}
       <div className="px-4 flex gap-1 border-b" style={{ borderColor: "var(--color-bg-secondary)" }}>
-        {(["palpites", "ranking"] as Tab[]).map((t) => (
+        {(["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -101,7 +149,7 @@ export default function BolaoClient({
               color: tab === t ? "var(--color-accent)" : "var(--color-text-secondary)",
             }}
           >
-            {t === "palpites" ? "Palpites" : "Ranking"}
+            {t === "palpites" ? "Palpites" : t === "ranking" ? "Ranking" : "Bracket"}
           </button>
         ))}
       </div>
@@ -109,22 +157,65 @@ export default function BolaoClient({
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto pb-24">
         {tab === "palpites" && (
-          <PalpitesTab
-            matches={matches}
-            localPreds={localPreds}
-            setLocalPreds={setLocalPreds}
-            saveState={saveState}
-            setSaveState={setSaveState}
-            scoreByPredId={scoreByPredId}
-            predIdByMatch={predIdByMatch}
-            poolId={pool.id}
-            deadlineMinutes={deadlineMinutes}
-            doneCount={doneCount}
-            total={matches.length}
-          />
+          <div className="flex flex-col">
+            {/* Card de palpites especiais (sempre no topo da aba palpites) */}
+            {hasSpecials && (
+              <div className="px-4 pt-4">
+                <SpecialBetsCard
+                  poolId={pool.id}
+                  ruleset={ruleset}
+                  teams={teams}
+                  groupTeams={groupTeams}
+                  deadlineAt={deadlineAt}
+                  initialBets={initialSpecialBets}
+                  specialResults={specialResults}
+                  specialScores={specialScores}
+                />
+              </div>
+            )}
+
+            {/* Palpites de placar — escondidos se specials_only */}
+            {!isSpecialsOnly && (
+              <PalpitesTab
+                matches={matches}
+                localPreds={localPreds}
+                setLocalPreds={setLocalPreds}
+                saveState={saveState}
+                setSaveState={setSaveState}
+                scoreByPredId={scoreByPredId}
+                predIdByMatch={predIdByMatch}
+                poolId={pool.id}
+                deadlineMinutes={deadlineMinutes}
+                doneCount={doneCount}
+                total={matches.length}
+              />
+            )}
+
+            {/* Specials only: sem jogos para palpitar */}
+            {isSpecialsOnly && !hasSpecials && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <p className="text-[15px]" style={{ color: "var(--color-text-secondary)" }}>
+                  Este bolão é apenas de classificação.
+                </p>
+              </div>
+            )}
+          </div>
         )}
         {tab === "ranking" && (
-          <RankingTab ranking={ranking} currentUserId={currentUserId} />
+          <RankingTab ranking={ranking} currentUserId={currentUserId} bracketEnabled={bracketEnabled} />
+        )}
+        {tab === "bracket" && bracketEnabled && (
+          <div className="px-4 py-3">
+            <BracketCard
+              poolId={pool.id}
+              ruleset={ruleset}
+              teams={teams}
+              groupTeams={groupTeams}
+              myBracket={myBracket}
+              lockAt={bracketLockAt}
+              locked={bracketLocked}
+            />
+          </div>
         )}
       </div>
     </div>
@@ -465,9 +556,11 @@ function saveStateLabelStr(
 function RankingTab({
   ranking,
   currentUserId,
+  bracketEnabled,
 }: {
   ranking: StandingRow[];
   currentUserId: string;
+  bracketEnabled?: boolean;
 }) {
   if (ranking.length === 0) {
     return (
@@ -533,9 +626,16 @@ function RankingTab({
             </div>
 
             {/* Pontos */}
-            <span className="tabular-nums text-[17px] font-bold" style={{ color: "var(--color-accent)" }}>
-              {row.points} pts
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="tabular-nums text-[17px] font-bold" style={{ color: "var(--color-accent)" }}>
+                {row.points} pts
+              </span>
+              {bracketEnabled && (row.bracket_points ?? 0) > 0 && (
+                <span className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
+                  Jogos {row.game_points ?? 0} · Bracket {row.bracket_points}
+                </span>
+              )}
+            </div>
           </div>
         );
       })}

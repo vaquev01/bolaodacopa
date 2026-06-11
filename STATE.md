@@ -1,6 +1,6 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-11 (tarde — execução iniciada)
+**Atualizado:** 2026-06-11 (MVP rodando, smoke test e2e validado)
 
 ## Posição atual
 
@@ -61,9 +61,24 @@ Agente UI/API construiu o MVP completo. Build `next build` passando limpo.
 - `b/[slug]/entrar/page.tsx` + `EntrarClient.tsx` — preview sem login, form nome, join
 - `b/[slug]/admin/page.tsx` + `AdminClient.tsx` — form resultado por jogo (owner only)
 
+## Integração final (2026-06-11, mesmo dia)
+
+- ✅ Scoring engine real integrado (`src/lib/scoring/index.ts`), `scoring-stub.ts` removido — 69 testes + build limpos
+- ✅ **Calendário oficial 104 jogos** no banco via migration `replace_seed_with_full_official_calendar` (fonte: football-data.org API v4, ext_id `fd-{id}`, nomes pt-BR; mata-mata "A definir"). Token no Keychain `keli-vault/football-data`
+- ✅ Migration `rpc_predictions_for_scoring`: RLS esconde palpites até kickoff, então a rota de resultado usa RPC security definer (valida `_auth` + owner) para ler palpites e pontuar
+- ✅ Smoke test e2e real (porta 3017, `next start`): perfil → bolão → join 2º jogador → 2 palpites → resultado 2x1 → `scored: 2` (exato=10 pts, vencedor+saldo=5 pts, breakdown correto). Dados de teste limpos do banco depois
+- ✅ Todas as rotas respondem 200 (/, /criar, /b/[slug], convite, admin; /entrar 307 quando já membro)
+- ✅ Commit `ab9f152` + push (repo keli-products-bolao-copa)
+- ⚠️ `.env.local` precisa exatamente `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Pesquisa repos GitHub (2026-06-11)
+
+Top 3 recomendados: **openfootball/worldcup.json** (CC0, fixtures 2026 auto-atualizados — fallback/cross-check do football-data.org), **Bignotto/big-bolao-mobile** (MIT, schema Supabase de bolão como referência), **lipis/flag-icons** (MIT, 12k stars — bandeiras `fi fi-br`). Bracket mata-mata: melhor fazer manual com Tailwind (lib g-loot é LGPL + styled-components). Não existe wrapper TS ativo p/ football-data.org v4 → client fetch próprio. Nenhum repo open-source tem ruleset configurável — nosso diferencial confirmado.
+
 ## Próximo passo
 
-- Scoring Engine (agente paralelo) implementa src/lib/scoring/index.ts com as mesmas assinaturas — remover scoring-stub.ts
-- Testar fluxo end-to-end com Supabase real
-- Adicionar `profiles` join no select de predictions para exibir nomes
+- Sync automático de placares: rota/cron (Vercel Cron) usando token `keli-vault/football-data` + cross-check openfootball/worldcup.json
+- Adicionar `profiles` join no select de predictions para exibir nomes no ranking
+- Deploy Vercel (env vars + domínio — blocker: nome do produto)
+- Bandeiras via `flag-icons` (npm) no lugar de emoji
 - Considerar Supabase Realtime no ranking

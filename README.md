@@ -31,6 +31,7 @@ npm run test                       # vitest
 | `SPEC.md` | PRD (problema, benchmark, MoSCoW, edge cases) + Tech Spec (stack, data model, ruleset JSON, API) + resumo UX |
 | `docs/ux-guidelines.md` | Spec UX/UI completa (fluxos, telas, tokens, anti-patterns) |
 | `STATE.md` | Posição atual, decisões, blockers, próximo passo |
+| `scripts/gen_wc26_sql.py` | Re-sync do calendário: dump da football-data.org → VALUES SQL pt-BR para a tabela `matches` (uso no docstring; testes em `scripts/test_gen_wc26_sql.py`, pytest 3/3) |
 
 ## Stack (planejado)
 

@@ -1,104 +1,97 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
 export default function Home() {
+  const router = useRouter();
+  const [inviteInput, setInviteInput] = useState("");
+
+  function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    const val = inviteInput.trim();
+    if (!val) return;
+    // Aceita URL completa ou slug direto
+    const match = val.match(/\/b\/([a-z0-9-]+)/);
+    const slug = match ? match[1] : val;
+    router.push(`/b/${slug}/entrar`);
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "var(--space-4)",
-        padding: "var(--space-6)",
-        backgroundColor: "var(--color-bg-primary)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "var(--space-3)",
-          maxWidth: 480,
-          width: "100%",
-          textAlign: "center",
-        }}
-      >
+    <main className="min-h-dvh flex flex-col items-center justify-center px-4 py-12"
+      style={{ background: "var(--color-bg-primary)" }}>
+      <div className="w-full max-w-sm flex flex-col items-center gap-6">
         {/* Badge */}
-        <span
-          style={{
-            display: "inline-block",
-            backgroundColor: "var(--color-accent)",
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: "0.02em",
-            padding: "4px 12px",
-            borderRadius: "var(--radius-badge)",
-          }}
-        >
-          Em breve
+        <span className="text-xs font-semibold tracking-wide px-3 py-1 rounded-badge text-white"
+          style={{ background: "var(--color-accent)" }}>
+          Copa do Mundo 2026
         </span>
 
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: 34,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            color: "var(--color-text-primary)",
-            margin: 0,
-          }}
-        >
-          Bolão Copa 2026
-        </h1>
+        {/* Trophy */}
+        <div className="text-6xl select-none">🏆</div>
 
-        {/* Subtitle */}
-        <p
-          style={{
-            fontSize: 17,
-            fontWeight: 400,
-            lineHeight: 1.5,
-            color: "var(--color-text-secondary)",
-            margin: 0,
-          }}
-        >
-          Crie seu próprio bolão com regras configuráveis, convide amigos pelo
-          WhatsApp e acompanhe o ranking ao vivo.
-        </p>
-
-        {/* Accent line */}
-        <div
-          style={{
-            width: 48,
-            height: 3,
-            borderRadius: 2,
-            backgroundColor: "var(--color-accent)",
-            marginTop: "var(--space-2)",
-          }}
-        />
-
-        {/* Card placeholder */}
-        <div
-          style={{
-            width: "100%",
-            backgroundColor: "var(--color-bg-card)",
-            borderRadius: "var(--radius-card)",
-            boxShadow: "var(--shadow-card)",
-            padding: "var(--space-6)",
-            marginTop: "var(--space-4)",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: 15,
-              color: "var(--color-text-secondary)",
-              fontWeight: 500,
-            }}
-          >
-            🏆 Scaffold pronto — implementação em andamento.
+        {/* Headline */}
+        <div className="text-center">
+          <h1 className="text-[34px] font-bold leading-tight"
+            style={{ color: "var(--color-text-primary)" }}>
+            Bolão Copa 2026
+          </h1>
+          <p className="mt-2 text-[17px] leading-relaxed"
+            style={{ color: "var(--color-text-secondary)" }}>
+            Crie seu bolão em 2 minutos. Convide pelo WhatsApp. Ranking ao vivo.
           </p>
         </div>
+
+        {/* CTA primário */}
+        <button
+          onClick={() => router.push("/criar")}
+          className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity active:opacity-80"
+          style={{ background: "var(--color-accent)", minHeight: 52 }}
+        >
+          Criar meu bolão
+        </button>
+
+        {/* Divisor */}
+        <div className="flex items-center gap-3 w-full">
+          <div className="flex-1 h-px" style={{ background: "var(--color-bg-secondary)" }} />
+          <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            ou
+          </span>
+          <div className="flex-1 h-px" style={{ background: "var(--color-bg-secondary)" }} />
+        </div>
+
+        {/* Convite */}
+        <form onSubmit={handleInvite} className="w-full flex flex-col gap-3">
+          <label className="text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+            Tenho um convite
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inviteInput}
+              onChange={(e) => setInviteInput(e.target.value)}
+              placeholder="Cole o link ou slug do bolão"
+              className="flex-1 px-4 py-3 rounded-button border text-[15px] outline-none focus:ring-2"
+              style={{
+                background: "var(--color-bg-card)",
+                borderColor: "var(--color-bg-secondary)",
+                color: "var(--color-text-primary)",
+              }}
+            />
+            <button
+              type="submit"
+              className="px-5 py-3 rounded-button font-semibold text-[15px] text-white transition-opacity active:opacity-80"
+              style={{ background: "var(--color-accent)", minHeight: 44 }}
+            >
+              Entrar
+            </button>
+          </div>
+        </form>
+
+        {/* Footer */}
+        <p className="text-[11px] text-center px-4" style={{ color: "var(--color-text-secondary)" }}>
+          Entretenimento entre amigos. O site não processa valores financeiros.
+        </p>
       </div>
     </main>
   );

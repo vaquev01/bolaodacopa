@@ -4,7 +4,22 @@ Plataforma onde qualquer pessoa cria e administra seu próprio bolão da Copa do
 
 ## Status
 
-Fase de spec — implementação não iniciada. Ver `SPEC.md` (PRD + Tech Spec) e `STATE.md`.
+Em implementação (2026-06-11). Ver `SPEC.md` (PRD + Tech Spec) e `STATE.md`.
+
+- ✅ Supabase provisionado: projeto `bolao-copa` (`rsippykwiffybjfgljzj`, sa-east-1, free tier) — schema completo (8 tabelas, RLS, 6 RPCs security definer com deadline server-side) + seed com 24 jogos reais da 1ª semana da Copa
+- ✅ Scaffold Next.js 14 App Router + TypeScript + Tailwind + vitest (porta 3017), clients Supabase em `src/lib/supabase/`
+- ⏳ Scoring Engine (`src/lib/scoring/`) — em desenvolvimento via TDD (ruleset Zod + engine puro + standings; testes em `src/lib/scoring/*.test.ts`)
+- ⏳ API routes + UI das telas core (em desenvolvimento paralelo)
+- ⏳ Calendário completo 104 jogos (24 seedados; restante em coleta verificada)
+
+### Rodar local
+
+```bash
+cp .env.local.example .env.local   # preencher NEXT_PUBLIC_SUPABASE_URL e ANON_KEY
+npm install
+npm run dev                        # http://localhost:3017
+npm run test                       # vitest
+```
 
 ## Documentos
 

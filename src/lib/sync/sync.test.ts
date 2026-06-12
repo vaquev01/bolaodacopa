@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { normalizeFdMatch, type FdMatch } from "./fd";
 import { planUpdates, type DbMatchRow } from "./plan";
 
-function fd(partial: Partial<FdMatch> & { score?: Partial<FdMatch["score"]> }): FdMatch {
+function fd(partial: { id?: number; status?: string; score?: Partial<FdMatch["score"]> }): FdMatch {
   return {
     id: 537327,
     status: "FINISHED",

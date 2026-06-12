@@ -16,6 +16,9 @@ interface WizardState {
   scopeType: ScopeType;
   selectedMatches: string[];
   // Passo 2
+  predictionMode: "score" | "winner";
+  winnerPickPoints: number;
+  winnerExactBonus: number;
   exactScore: number;
   winnerOnly: number;
   winnerAndDiff: number;
@@ -63,6 +66,9 @@ export default function CriarPage() {
     poolName: "",
     scopeType: "full",
     selectedMatches: [],
+    predictionMode: "score",
+    winnerPickPoints: DEFAULT_RULESET.scoring.winner_pick,
+    winnerExactBonus: DEFAULT_RULESET.scoring.winner_exact_bonus,
     exactScore: DEFAULT_RULESET.scoring.exact_score,
     winnerOnly: DEFAULT_RULESET.scoring.winner_only,
     winnerAndDiff: DEFAULT_RULESET.scoring.winner_and_diff,
@@ -127,6 +133,26 @@ export default function CriarPage() {
     return true;
   }
 
+  // ── Prazo dos palpites pré-Copa (campeão/classificados/bracket) ──────────
+  // Eles travam no início do 1º jogo do bolão (validado no servidor).
+  // matches já vem ordenado por kickoff.
+  const scopeMatches =
+    state.scopeType === "custom" && state.selectedMatches.length > 0
+      ? matches.filter((m) => state.selectedMatches.includes(m.id))
+      : matches;
+  const preCopaLockAt = scopeMatches.length > 0 ? scopeMatches[0].kickoff_at : null;
+  const preCopaLocked = preCopaLockAt
+    ? new Date(preCopaLockAt).getTime() <= Date.now()
+    : false;
+  const preCopaLockLabel = preCopaLockAt
+    ? (() => {
+        const { date, time } = formatKickoff(preCopaLockAt);
+        return `${date} às ${time}`;
+      })()
+    : null;
+  const deadlineLabel =
+    DEADLINE_OPTIONS.find((o) => o.value === state.deadlineMinutes)?.label ?? "15 min antes";
+
   async function handleCreate() {
     setError(null);
     setLoading(true);
@@ -153,8 +179,12 @@ export default function CriarPage() {
       }
 
       const specialsOnly = state.scopeType === "specials_only";
+      // Pré-Copa travado (1º jogo do bolão já começou) → essas apostas não
+      // podem mais ser preenchidas; criar o bolão com elas desligadas.
+      const preCopaAvailable = !preCopaLocked;
       const ruleset = {
         ...DEFAULT_RULESET,
+        prediction_mode: state.predictionMode,
         scoring: {
           ...DEFAULT_RULESET.scoring,
           exact_score: state.exactScore,
@@ -162,6 +192,8 @@ export default function CriarPage() {
           winner_and_diff: state.winnerAndDiff,
           draw_only: state.drawOnly,
           goals_one_team: state.goalsOneTeam,
+          winner_pick: state.winnerPickPoints,
+          winner_exact_bonus: state.winnerExactBonus,
         },
         deadline: {
           mode: "per_match",
@@ -171,12 +203,12 @@ export default function CriarPage() {
         special_bets: {
           ...DEFAULT_RULESET.special_bets,
           champion: {
-            enabled: specialsOnly || state.championEnabled,
+            enabled: preCopaAvailable && (specialsOnly || state.championEnabled),
             points: state.championPoints,
           },
           qualifiers: {
             ...DEFAULT_RULESET.special_bets.qualifiers,
-            enabled: specialsOnly || state.qualifiersEnabled,
+            enabled: preCopaAvailable && (specialsOnly || state.qualifiersEnabled),
             points_per_team: state.qualifiersPoints,
           },
         },
@@ -186,7 +218,7 @@ export default function CriarPage() {
           points: state.earlyBirdPoints,
         },
         advance_predictions: {
-          enabled: state.bracketEnabled,
+          enabled: preCopaAvailable && state.bracketEnabled,
           lock: "tournament_start",
           points: {
             group_qualified: state.bracketPointsGroupQualified,
@@ -339,18 +371,23 @@ export default function CriarPage() {
                   {
                     id: "specials_only" as const,
                     title: "Só classificação",
-                    sub: "Acertar classificados dos grupos e o campeão — sem placares",
+                    sub: preCopaLocked
+                      ? "Indisponível: esses palpites fecham quando a Copa começa — e ela já começou"
+                      : "Acertar classificados dos grupos e o campeão — sem placares",
                     icon: (
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                         <path d="M6 2.5h8M6 2.5C6 2.5 4 2.5 4 5c0 3 1.5 5.5 4 6.5V14H6.5a.75.75 0 000 1.5h7a.75.75 0 000-1.5H12v-2.5c2.5-1 4-3.5 4-6.5 0-2.5-2-2.5-2-2.5M8 14h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ),
                   },
-                ].map((opt) => (
+                ].map((opt) => {
+                  const disabled = opt.id === "specials_only" && preCopaLocked;
+                  return (
                   <button
                     key={opt.id}
-                    onClick={() => update("scopeType", opt.id)}
-                    className="flex items-center gap-3 p-4 rounded-card text-left transition-all active:scale-[0.98]"
+                    onClick={() => !disabled && update("scopeType", opt.id)}
+                    disabled={disabled}
+                    className="flex items-center gap-3 p-4 rounded-card text-left transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
                     style={{
                       background: state.scopeType === opt.id
                         ? "var(--color-accent)"
@@ -377,7 +414,8 @@ export default function CriarPage() {
                       <p className="text-[13px] opacity-70">{opt.sub}</p>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -389,30 +427,38 @@ export default function CriarPage() {
                     Jogos selecionados ({state.selectedMatches.length})
                   </label>
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      const selectable = matches
+                        .filter((m) => new Date(m.kickoff_at).getTime() > Date.now())
+                        .map((m) => m.id);
                       setState((s) => ({
                         ...s,
                         selectedMatches:
-                          s.selectedMatches.length === matches.length
-                            ? []
-                            : matches.map((m) => m.id),
-                      }))
-                    }
+                          s.selectedMatches.length === selectable.length ? [] : selectable,
+                      }));
+                    }}
                     className="text-[13px] font-medium"
                     style={{ color: "var(--color-accent)" }}
                   >
-                    {state.selectedMatches.length === matches.length ? "Desmarcar tudo" : "Marcar tudo"}
+                    {state.selectedMatches.length > 0 &&
+                    state.selectedMatches.length ===
+                      matches.filter((m) => new Date(m.kickoff_at).getTime() > Date.now()).length
+                      ? "Desmarcar tudo"
+                      : "Marcar todos os jogos futuros"}
                   </button>
                 </div>
                 <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
                   {matches.map((m) => {
                     const { date, time } = formatKickoff(m.kickoff_at);
                     const selected = state.selectedMatches.includes(m.id);
+                    const started = new Date(m.kickoff_at).getTime() <= Date.now();
                     return (
                       <button
                         key={m.id}
-                        onClick={() => toggleMatch(m.id)}
-                        className="flex items-center gap-3 p-3 rounded-card text-left"
+                        onClick={() => !started && toggleMatch(m.id)}
+                        disabled={started}
+                        title={started ? "Jogo já começou — não dá mais para palpitar nele" : undefined}
+                        className="flex items-center gap-3 p-3 rounded-card text-left disabled:opacity-45"
                         style={{
                           background: selected ? "#EAF2FF" : "var(--color-bg-card)",
                           border: selected ? "1.5px solid var(--color-accent)" : "1.5px solid transparent",
@@ -436,7 +482,7 @@ export default function CriarPage() {
                             {m.home_team} × {m.away_team}
                           </p>
                           <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
-                            {date} • {time} • {stageLabel(m.stage)}
+                            {date} • {time} • {stageLabel(m.stage)}{started ? " • já aconteceu" : ""}
                           </p>
                         </div>
                       </button>
@@ -456,9 +502,107 @@ export default function CriarPage() {
                 Regras do bolão
               </h2>
               <p className="mt-1 text-[15px]" style={{ color: "var(--color-text-secondary)" }}>
-                Defaults prontos para usar. Mude se quiser.
+                Já vem tudo pronto com valores recomendados. Mude só se quiser.
               </p>
             </div>
+
+            {/* Como funcionam os prazos */}
+            <div className="p-4 rounded-card flex flex-col gap-2" style={{ background: "var(--color-bg-secondary)" }}>
+              <p className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                📌 Até quando dá pra palpitar?
+              </p>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                <strong>Palpite de jogo:</strong> abre agora e fecha {deadlineLabel.toLowerCase()} do
+                início de cada jogo. Até lá, pode palpitar e mudar quantas vezes quiser.
+              </p>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                <strong>Palpites de antes da Copa</strong> (campeão, classificados, bracket):{" "}
+                {preCopaLocked
+                  ? "ficam de fora deste bolão — eles fecham quando o 1º jogo começa, e a Copa já está em andamento."
+                  : `todo mundo preenche até ${preCopaLockLabel} (início do 1º jogo do bolão). Depois disso, trava para sempre.`}
+              </p>
+            </div>
+
+            {/* Modo de palpite */}
+            {state.scopeType !== "specials_only" && (
+              <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
+                <div>
+                  <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    Como cada um vai palpitar?
+                  </p>
+                  <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Vale para todos os jogos do bolão.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {[
+                    {
+                      id: "score" as const,
+                      title: "Placar completo",
+                      sub: "Cada um chuta o placar do jogo. Mais formas de pontuar: placar exato, vencedor + saldo, vencedor, empate.",
+                    },
+                    {
+                      id: "winner" as const,
+                      title: "Só o vencedor",
+                      sub: "Cada um só escolhe quem ganha (ou empate). Rápido e simples — com bônus opcional pra quem cravar o placar.",
+                    },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => update("predictionMode", opt.id)}
+                      className="p-3 rounded-card text-left transition-all active:scale-[0.98]"
+                      style={{
+                        background: state.predictionMode === opt.id ? "var(--color-accent)" : "var(--color-bg-secondary)",
+                        color: state.predictionMode === opt.id ? "#fff" : "var(--color-text-primary)",
+                        transitionTimingFunction: "var(--ease-spring)",
+                        transitionDuration: "var(--duration-feedback)",
+                      }}
+                    >
+                      <p className="font-semibold text-[15px]">{opt.title}</p>
+                      <p className="text-[13px] opacity-75">{opt.sub}</p>
+                    </button>
+                  ))}
+                </div>
+                {state.predictionMode === "winner" && (
+                  <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                          Acertou quem ganha
+                        </p>
+                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
+                          (recomendado: 3)
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StepperButton onClick={() => update("winnerPickPoints", Math.max(1, state.winnerPickPoints - 1))} label="−" />
+                        <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                          {state.winnerPickPoints}
+                        </span>
+                        <StepperButton onClick={() => update("winnerPickPoints", Math.min(99, state.winnerPickPoints + 1))} label="+" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                          Bônus por cravar o placar
+                        </p>
+                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
+                          Opcional para quem quiser arriscar (recomendado: 5 · 0 desliga)
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StepperButton onClick={() => update("winnerExactBonus", Math.max(0, state.winnerExactBonus - 1))} label="−" />
+                        <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                          {state.winnerExactBonus}
+                        </span>
+                        <StepperButton onClick={() => update("winnerExactBonus", Math.min(99, state.winnerExactBonus + 1))} label="+" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Campeão */}
             <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
@@ -468,13 +612,15 @@ export default function CriarPage() {
                     Acertar o campeão 🏆
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Palpite feito antes da copa começar (recomendado: 50)
+                    {preCopaLocked
+                      ? "Indisponível: fecha no 1º jogo do bolão, que já aconteceu"
+                      : `Cada um crava o campeão até ${preCopaLockLabel} (recomendado: 50)`}
                   </p>
                 </div>
                 {state.scopeType === "specials_only" ? (
                   <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
                 ) : (
-                  <Toggle value={state.championEnabled} onChange={(v) => update("championEnabled", v)} />
+                  <Toggle value={!preCopaLocked && state.championEnabled} onChange={(v) => update("championEnabled", v)} disabled={preCopaLocked} />
                 )}
               </div>
               {(state.championEnabled || state.scopeType === "specials_only") && (
@@ -499,13 +645,15 @@ export default function CriarPage() {
                     Acertar os classificados
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    1º e 2º de cada grupo, antes da copa (recomendado: 2 por time + 1 pela posição)
+                    {preCopaLocked
+                      ? "Indisponível: fecha no 1º jogo do bolão, que já aconteceu"
+                      : `1º e 2º de cada grupo, até ${preCopaLockLabel} (recomendado: 2 por time + 1 pela posição)`}
                   </p>
                 </div>
                 {state.scopeType === "specials_only" ? (
                   <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
                 ) : (
-                  <Toggle value={state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} />
+                  <Toggle value={!preCopaLocked && state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} disabled={preCopaLocked} />
                 )}
               </div>
               {(state.qualifiersEnabled || state.scopeType === "specials_only") && (
@@ -530,29 +678,31 @@ export default function CriarPage() {
                     Bracket pré-Copa
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Palpite de classificados, semifinalistas e campeão antes da Copa — pontos extras por fase
+                    {preCopaLocked
+                      ? "Indisponível: o bracket fecha no 1º jogo do bolão, que já aconteceu"
+                      : `Cada um preenche o chaveamento completo — de quem avança dos grupos até o campeão — até ${preCopaLockLabel}. Os pontos entram conforme a Copa confirma cada fase.`}
                   </p>
                 </div>
-                <Toggle value={state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} />
+                <Toggle value={!preCopaLocked && state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} disabled={preCopaLocked} />
               </div>
 
-              {state.bracketEnabled && (
+              {!preCopaLocked && state.bracketEnabled && (
                 <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
                   {[
-                    { key: "bracketPointsGroupQualified" as const, label: "Classificado ao R32", rec: 2 },
-                    { key: "bracketPointsGroupPositionExact" as const, label: "+Bônus posição exata no grupo", rec: 1 },
-                    { key: "bracketPointsR16" as const, label: "Presente nas oitavas", rec: 2 },
-                    { key: "bracketPointsQf" as const, label: "Presente nas quartas", rec: 3 },
-                    { key: "bracketPointsSf" as const, label: "Presente nas semis", rec: 5 },
-                    { key: "bracketPointsFinal" as const, label: "Finalista", rec: 8 },
-                    { key: "bracketPointsThirdPlace" as const, label: "3º lugar exato", rec: 8 },
-                    { key: "bracketPointsRunnerUp" as const, label: "Vice exato", rec: 10 },
-                    { key: "bracketPointsChampion" as const, label: "Campeão exato", rec: 25 },
-                  ].map(({ key, label, rec }) => (
+                    { key: "bracketPointsGroupQualified" as const, label: "Avançou da fase de grupos", desc: "por seleção que você indicou e passou", rec: 2 },
+                    { key: "bracketPointsGroupPositionExact" as const, label: "Bônus: posição no grupo", desc: "acertou também se foi 1º ou 2º", rec: 1 },
+                    { key: "bracketPointsR16" as const, label: "Chegou às oitavas", desc: "por seleção certa", rec: 2 },
+                    { key: "bracketPointsQf" as const, label: "Chegou às quartas", desc: "por seleção certa", rec: 3 },
+                    { key: "bracketPointsSf" as const, label: "Chegou às semifinais", desc: "por seleção certa", rec: 5 },
+                    { key: "bracketPointsFinal" as const, label: "Chegou à final", desc: "por finalista certo", rec: 8 },
+                    { key: "bracketPointsThirdPlace" as const, label: "3º lugar em cheio", desc: "acertou quem ficou em 3º", rec: 8 },
+                    { key: "bracketPointsRunnerUp" as const, label: "Vice em cheio", desc: "acertou quem perdeu a final", rec: 10 },
+                    { key: "bracketPointsChampion" as const, label: "Campeão em cheio", desc: "acertou o campeão do mundo", rec: 25 },
+                  ].map(({ key, label, desc, rec }) => (
                     <div key={key} className="flex items-center justify-between">
-                      <div>
+                      <div className="pr-3">
                         <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{label}</p>
-                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>(recomendado: {rec})</p>
+                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{desc} · recomendado: {rec}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <StepperButton
@@ -575,6 +725,7 @@ export default function CriarPage() {
 
             {/* Regras de placar — não se aplicam ao modo "só classificação" */}
             {state.scopeType !== "specials_only" && (<>
+            {state.predictionMode === "score" && (<>
             <div className="p-4 rounded-card" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <div className="flex items-center justify-between">
                 <div>
@@ -615,14 +766,15 @@ export default function CriarPage() {
                 </div>
               </div>
             </div>
+            </>)}
 
             {/* Prazo */}
             <div className="p-4 rounded-card" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
-              <p className="text-[15px] font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>
-                Prazo para palpitar{" "}
-                <span className="font-normal text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                  (recomendado: 15 min antes)
-                </span>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                Prazo para palpitar em cada jogo
+              </p>
+              <p className="text-[13px] mb-3" style={{ color: "var(--color-text-secondary)" }}>
+                O palpite de um jogo fecha neste tempo antes do início dele (recomendado: 15 min)
               </p>
               <div className="flex gap-2">
                 {DEADLINE_OPTIONS.map((opt) => (
@@ -661,6 +813,7 @@ export default function CriarPage() {
 
             {advancedOpen && (
               <div className="p-4 rounded-card flex flex-col gap-4" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
+                {state.predictionMode === "score" && (<>
                 {/* Vencedor + saldo de gols */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -717,6 +870,7 @@ export default function CriarPage() {
                     <StepperButton onClick={() => update("goalsOneTeam", Math.min(99, state.goalsOneTeam + 1))} label="+" />
                   </div>
                 </div>
+                </>)}
 
                 {/* Edição de palpite */}
                 <div className="flex items-center justify-between">
@@ -725,7 +879,7 @@ export default function CriarPage() {
                       Permitir edição de palpite
                     </p>
                     <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                      Até o prazo fechar
+                      Mudar o palpite já enviado, quantas vezes quiser, até o prazo do jogo fechar
                     </p>
                   </div>
                   <Toggle value={state.allowEdit} onChange={(v) => update("allowEdit", v)} />
@@ -801,23 +955,34 @@ export default function CriarPage() {
               />
               <ReviewRow
                 label="Campeão"
-                value={state.championEnabled || state.scopeType === "specials_only"
-                  ? `${state.championPoints} pts`
-                  : "Desligada"}
+                value={preCopaLocked
+                  ? "Indisponível (Copa em andamento)"
+                  : state.championEnabled || state.scopeType === "specials_only"
+                    ? `${state.championPoints} pts`
+                    : "Desligada"}
               />
               <ReviewRow
                 label="Classificados"
-                value={state.qualifiersEnabled || state.scopeType === "specials_only"
-                  ? `${state.qualifiersPoints} pts/time`
-                  : "Desligada"}
+                value={preCopaLocked
+                  ? "Indisponível (Copa em andamento)"
+                  : state.qualifiersEnabled || state.scopeType === "specials_only"
+                    ? `${state.qualifiersPoints} pts/time`
+                    : "Desligada"}
               />
               <ReviewRow
                 label="Bracket pré-Copa"
-                value={state.bracketEnabled
-                  ? `Campeão: ${state.bracketPointsChampion}pts · R16: ${state.bracketPointsR16}pts`
-                  : "Desligado"}
+                value={preCopaLocked
+                  ? "Indisponível (Copa em andamento)"
+                  : state.bracketEnabled
+                    ? `Campeão: ${state.bracketPointsChampion}pts · Oitavas: ${state.bracketPointsR16}pts`
+                    : "Desligado"}
               />
               {state.scopeType !== "specials_only" && (<>
+              <ReviewRow
+                label="Palpite"
+                value={state.predictionMode === "winner" ? "Só o vencedor" : "Placar completo"}
+              />
+              {state.predictionMode === "score" ? (<>
               <ReviewRow label="Placar exato" value={`${state.exactScore} pts`} />
               <ReviewRow label="Vencedor + saldo" value={`${state.winnerAndDiff} pts`} />
               <ReviewRow label="Vencedor certo" value={`${state.winnerOnly} pts`} />
@@ -826,16 +991,24 @@ export default function CriarPage() {
                 label="Gols de um time"
                 value={state.goalsOneTeam === 0 ? "Desligada" : `${state.goalsOneTeam} pt(s)`}
               />
+              </>) : (<>
+              <ReviewRow label="Acertou quem ganha" value={`${state.winnerPickPoints} pts`} />
+              <ReviewRow
+                label="Bônus placar cravado"
+                value={state.winnerExactBonus === 0 ? "Desligado" : `+${state.winnerExactBonus} pts`}
+              />
+              </>)}
               <ReviewRow
                 label="Bônus antecipado"
                 value={state.earlyBirdEnabled ? `+${state.earlyBirdPoints} pts` : "Desligada"}
               />
-              <ReviewRow
-                label="Prazo"
-                value={DEADLINE_OPTIONS.find((o) => o.value === state.deadlineMinutes)?.label ?? "—"}
-              />
-              <ReviewRow label="Edição de palpite" value={state.allowEdit ? "Permitida" : "Bloqueada"} />
+              <ReviewRow label="Palpites fecham" value={`${deadlineLabel} de cada jogo`} />
+              <ReviewRow label="Edição de palpite" value={state.allowEdit ? "Permitida até o prazo" : "Bloqueada"} />
               </>)}
+              {!preCopaLocked && preCopaLockLabel &&
+                (state.championEnabled || state.qualifiersEnabled || state.bracketEnabled || state.scopeType === "specials_only") && (
+                <ReviewRow label="Pré-Copa trava em" value={preCopaLockLabel} />
+              )}
             </div>
 
             {/* Campo de nome se sem sessão */}
@@ -919,13 +1092,14 @@ function StepperButton({ onClick, label }: { onClick: () => void; label: string 
   );
 }
 
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
       role="switch"
       aria-checked={value}
-      onClick={() => onChange(!value)}
-      className="w-12 h-7 rounded-full relative transition-colors"
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!value)}
+      className="w-12 h-7 rounded-full relative transition-colors disabled:opacity-40"
       style={{ background: value ? "var(--color-accent)" : "var(--color-bg-secondary)" }}
     >
       <span

@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
     const { pool_id, match_id, payload } = body as {
       pool_id?: string;
       match_id?: string;
-      payload?: { home: number; away: number };
+      payload?: {
+        home?: number | null;
+        away?: number | null;
+        winner?: "home" | "draw" | "away";
+      };
     };
 
     if (!pool_id || !match_id || payload === undefined) {
@@ -26,16 +30,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (
-      typeof payload.home !== "number" ||
-      typeof payload.away !== "number" ||
-      payload.home < 0 ||
-      payload.away < 0 ||
-      payload.home > 99 ||
-      payload.away > 99
-    ) {
+    const validScore = (n: unknown) => typeof n === "number" && n >= 0 && n <= 99;
+    const isWinnerPick =
+      payload.winner !== undefined &&
+      ["home", "draw", "away"].includes(payload.winner) &&
+      // placar opcional no modo vencedor: ausente, ou completo e válido
+      ((payload.home == null && payload.away == null) ||
+        (validScore(payload.home) && validScore(payload.away)));
+    const isScorePick =
+      payload.winner === undefined && validScore(payload.home) && validScore(payload.away);
+
+    if (!isWinnerPick && !isScorePick) {
       return NextResponse.json(
-        { error: "invalid_input", message: "Placar inválido." },
+        { error: "invalid_input", message: "Palpite inválido." },
         { status: 422 }
       );
     }

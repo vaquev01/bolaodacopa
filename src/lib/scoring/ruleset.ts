@@ -11,6 +11,10 @@ const ScoringSchema = z.object({
   draw_only: z.number().default(4),
   // Consolação: errou o vencedor mas acertou os gols de um dos times. 0 = desligada.
   goals_one_team: z.number().default(1),
+  // Modo "só vencedor": pontos por cravar o 1X2 (casa/empate/fora).
+  winner_pick: z.number().default(3),
+  // Modo "só vencedor": bônus opcional por também cravar o placar. 0 = desligado.
+  winner_exact_bonus: z.number().default(5),
 });
 
 const StageMultipliersSchema = z.object({
@@ -111,6 +115,13 @@ const TiebreakerSchema = z.enum([
 
 export const RulesetSchema = z.object({
   version: z.number().default(1),
+  /**
+   * Como cada participante palpita:
+   *  - "score": chuta o placar completo (camadas exato/saldo/vencedor/empate/consolação)
+   *  - "winner": escolhe só quem ganha (1X2) + bônus opcional por cravar o placar
+   * Default "score" — retrocompatível com todos os pools existentes.
+   */
+  prediction_mode: z.enum(["score", "winner"]).default("score"),
   scoring: ScoringSchema.default({}),
   stage_multipliers: StageMultipliersSchema.default({}),
   score_basis: z.enum(["90min", "final"]).default("90min"),

@@ -1,6 +1,16 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-12 10:10 (v1.3 sync automático de placares + ops resiliente)
+**Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
+
+## v1.4 — Modo de palpite + jornada guiada (2026-06-12, manhã)
+
+Feedback do Victor testando local: regras sem contexto de prazo, tela de preenchimento "pobre", faltava opção de palpitar só o vencedor.
+
+- **`prediction_mode` no ruleset** (`"score"` default | `"winner"`): modo winner = payload `{winner: home|draw|away, home?, away?}`, pontua `scoring.winner_pick` (3) + `scoring.winner_exact_bonus` (5, 0 desliga) por cravar placar opcional. Engine: `scoreWinnerPick` em engine.ts; retrocompat total (9 testes novos, 126/126). API predictions valida ambos payloads
+- **Wizard**: card de prazos em linguagem humana (deadline por jogo + lock pré-Copa com data/hora REAL), escolha do modo, pré-Copa travado com explicação quando 1º jogo do escopo já passou (forçado off no ruleset criado), "specials_only" desabilitado (Copa em andamento), jogos passados não selecionáveis, labels do bracket sem jargão
+- **BolaoClient one-page** (agente cre-ux): progresso, seção "Prazo chegando" (≤48h), chips sticky de navegação (A–L · fases), agrupamento por grupo/fase, estados visuais (aberto/urgente/aguardando/encerrado c/ breakdown), WinnerPicker (3 botões + cravar placar colapsável)
+- **AdminClient**: banner "resultados entram sozinhos", subtítulo "Corrigir resultados", pendentes agrupados por data, registrados colapsados
+- **Smoke e2e real**: pool `sistema-smoke-winner-cjcnj` (modo winner, escopo custom 2 jogos de 12/06) + palpites `{winner:"home"}` e `{winner:"draw",1x1}` aceitos, payload inválido 422. Quando os jogos terminarem o sync pontua → prova viva do winner scoring (conferir prediction_scores)
 
 ## v1.3 — Sync automático de placares (2026-06-12)
 

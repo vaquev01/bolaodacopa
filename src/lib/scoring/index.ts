@@ -9,6 +9,8 @@ export {
   type Stage,
   type MatchStatus,
   type Prediction,
+  type WinnerPrediction,
+  type PredictionPayload,
   type Match,
   type ScoreResult,
 } from "./engine";

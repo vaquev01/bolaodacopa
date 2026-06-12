@@ -12,6 +12,15 @@ export interface Prediction {
   away: number;
 }
 
+/** Palpite do modo "só vencedor": 1X2 + placar opcional (bônus). */
+export interface WinnerPrediction {
+  winner: "home" | "draw" | "away";
+  home?: number | null;
+  away?: number | null;
+}
+
+export type PredictionPayload = Prediction | WinnerPrediction;
+
 export interface Match {
   stage: Stage;
   score_home_90: number;
@@ -43,7 +52,7 @@ function getOutcome(home: number, away: number): "home" | "away" | "draw" {
 
 export function scorePrediction(
   ruleset: Ruleset,
-  prediction: Prediction,
+  prediction: PredictionPayload,
   match: Match
 ): ScoreResult {
   if (match.status !== "finished") {
@@ -58,8 +67,12 @@ export function scorePrediction(
   const actualAway =
     ruleset.score_basis === "final" ? match.score_away_ft : match.score_away_90;
 
-  const predHome = prediction.home;
-  const predAway = prediction.away;
+  if (ruleset.prediction_mode === "winner" || "winner" in prediction) {
+    return scoreWinnerPick(ruleset, prediction as WinnerPrediction, match, actualHome, actualAway);
+  }
+
+  const predHome = (prediction as Prediction).home;
+  const predAway = (prediction as Prediction).away;
 
   // Get stage multiplier
   const multiplier: number =
@@ -108,6 +121,49 @@ export function scorePrediction(
   }
 
   // Apply stage multiplier
+  breakdown.stage_multiplier = multiplier;
+  const total = basePoints * multiplier;
+  breakdown.total = total;
+
+  return { points: total, breakdown };
+}
+
+/**
+ * Modo "só vencedor": acertou o 1X2 → winner_pick pts.
+ * Se também preencheu o placar e cravou → + winner_exact_bonus (0 desliga).
+ * Multiplicador de fase aplica sobre a soma.
+ */
+function scoreWinnerPick(
+  ruleset: Ruleset,
+  prediction: WinnerPrediction,
+  match: Match,
+  actualHome: number,
+  actualAway: number
+): ScoreResult {
+  const multiplier: number =
+    ruleset.stage_multipliers[match.stage as keyof typeof ruleset.stage_multipliers] ?? 1;
+
+  let basePoints = 0;
+  const breakdown: Record<string, number> = {};
+  const actualOutcome = getOutcome(actualHome, actualAway);
+
+  if (prediction.winner === actualOutcome) {
+    basePoints = ruleset.scoring.winner_pick;
+    breakdown.winner_pick = basePoints;
+
+    const bonus = ruleset.scoring.winner_exact_bonus;
+    if (
+      bonus > 0 &&
+      prediction.home != null &&
+      prediction.away != null &&
+      prediction.home === actualHome &&
+      prediction.away === actualAway
+    ) {
+      basePoints += bonus;
+      breakdown.winner_exact_bonus = bonus;
+    }
+  }
+
   breakdown.stage_multiplier = multiplier;
   const total = basePoints * multiplier;
   breakdown.total = total;

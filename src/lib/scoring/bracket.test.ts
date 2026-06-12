@@ -500,3 +500,85 @@ describe("scoreBracket — breakdown auditável", () => {
     expect(result.breakdown["total"]).toBe(result.points);
   });
 });
+
+// ── Melhores 3ºs (v1.5.1) ─────────────────────────────────────────────────
+
+describe("melhores 3ºs", () => {
+  const EMPTY: BracketPayload = {
+    groups: {},
+    third_qualifiers: [],
+    r32_winners: [],
+    r16_winners: [],
+    qf_winners: [],
+    sf_winners: [],
+    finalists: [],
+    champion: "",
+    third_place: "",
+  };
+
+  // t[0] vence todos; t[1] vence t[2] e t[3]; t[2] vence t[3]
+  const groupGames = (g: string, t: string[]): MatchInput[] => [
+    makeGroupMatch(t[0], t[1], g, 2, 0),
+    makeGroupMatch(t[0], t[2], g, 2, 0),
+    makeGroupMatch(t[0], t[3], g, 2, 0),
+    makeGroupMatch(t[1], t[2], g, 1, 0),
+    makeGroupMatch(t[1], t[3], g, 1, 0),
+    makeGroupMatch(t[2], t[3], g, 1, 0),
+  ];
+
+  it("deriva o 3º de cada grupo", () => {
+    const outcome = deriveBracketOutcome(groupGames("A", ["AA", "AB", "AC", "AD"]));
+    expect(outcome.groups.A).toEqual({ first: "AA", second: "AB", third: "AC" });
+    expect(outcome.qualified).toEqual(["AA", "AB"]); // 3º ainda não confirmado
+  });
+
+  it("3º que aparece no mata-mata real vira classificado", () => {
+    const matches: MatchInput[] = [
+      ...groupGames("A", ["AA", "AB", "AC", "AD"]),
+      {
+        id: "ko1",
+        stage: "r32",
+        home_team: "AA",
+        away_team: "AC",
+        score_home_90: null,
+        score_away_90: null,
+        status: "scheduled",
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    expect(outcome.qualified).toContain("AC");
+  });
+
+  it("third_qualifiers pontuam group_qualified quando o 3º avançou", () => {
+    const matches: MatchInput[] = [
+      ...groupGames("A", ["AA", "AB", "AC", "AD"]),
+      {
+        id: "ko1",
+        stage: "r32",
+        home_team: "AA",
+        away_team: "AC",
+        score_home_90: null,
+        score_away_90: null,
+        status: "scheduled",
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    const payload = { ...EMPTY, third_qualifiers: ["AC", "ZZ"] };
+    const { points, breakdown } = scoreBracket(DEFAULT_POINTS, payload, outcome);
+    expect(breakdown["third_q_AC"]).toBe(2);
+    expect(breakdown["third_q_ZZ"]).toBeUndefined();
+    expect(points).toBe(2);
+  });
+
+  it("sem dupla contagem: time marcado como 2º não repontua via third_qualifiers", () => {
+    const outcome = deriveBracketOutcome(groupGames("A", ["AA", "AB", "AC", "AD"]));
+    const payload = {
+      ...EMPTY,
+      groups: { A: ["AA", "AB"] },
+      third_qualifiers: ["AB"],
+    };
+    const { breakdown } = scoreBracket(DEFAULT_POINTS, payload, outcome);
+    expect(breakdown["third_q_AB"]).toBeUndefined();
+    expect(breakdown["group_A_AB"]).toBeDefined();
+  });
+});

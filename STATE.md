@@ -2,6 +2,16 @@
 
 **Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
 
+## v1.5.1 — 3ºs de verdade + consolidação (2026-06-12, ~11h)
+
+Feedback duro do Victor (tela do bolao-mkw8x, criado com bundle pré-v1.5): "cadê o 3º colocado, cadê a tabela completa, cadê os 3ºs no ranking, onde está o placar exato". Gaps reais encontrados e fechados:
+
+- **UI dos 3ºs não existia**: BracketCard agora cicla 1º→2º→3º no tap (3º = borda tracejada), seção nova "Melhores terceiros — escolha 8" (candidatos = 3ºs marcados, cap 8, progresso x/8). Candidatos a oitavas = 1º/2º + os 8 escolhidos
+- **Scoring dos 3ºs não existia**: deriveBracketOutcome ganha groups.third + qualified inclui times do chaveamento r32 real ("A definir" ignorado); scoreBracket pontua third_qualifiers com group_qualified (guard anti-dupla-contagem). 4 testes novos — 130/130
+- **Consolidação**: no "só classificação" o chaveamento é a fonte ÚNICA (champion/qualifiers specials desligados no ruleset, cards escondidos no wizard, bracket "Sempre ativo") — elimina a tela duplicada de 1º/2º que confundiu o Victor
+- **RLS de pools**: UPDATE via anon retorna 204 com 0 rows (RLS ok, sem vuln; PATCH não conserta pools antigos). Bolões criados antes da v1.5 não são editáveis — recriar
+- ⚠️ Bolões antigos do Victor (bolao-mkw8x etc.) ficaram na config velha — ele recria no fluxo novo
+
 ## v1.5 — Classificação completa + chaveamento visual (2026-06-12)
 
 Victor: "definir 1º, 2º e melhores 3ºs (influem no chaveamento)", "chaveamento da Copa visível como o PDF", "placar exato como pontuação extra".

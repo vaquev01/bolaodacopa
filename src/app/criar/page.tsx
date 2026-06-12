@@ -247,13 +247,15 @@ export default function CriarPage() {
         edits: { allowed: state.allowEdit },
         special_bets: {
           ...DEFAULT_RULESET.special_bets,
+          // No "só classificação" o chaveamento cobre campeão e classificados —
+          // os palpites especiais separados ficam desligados (sem duplicação).
           champion: {
-            enabled: preCopaAvailable && (specialsOnly || state.championEnabled),
+            enabled: preCopaAvailable && !specialsOnly && state.championEnabled,
             points: state.championPoints,
           },
           qualifiers: {
             ...DEFAULT_RULESET.special_bets.qualifiers,
-            enabled: preCopaAvailable && (specialsOnly || state.qualifiersEnabled),
+            enabled: preCopaAvailable && !specialsOnly && state.qualifiersEnabled,
             points_per_team: state.qualifiersPoints,
           },
         },
@@ -263,7 +265,8 @@ export default function CriarPage() {
           points: state.earlyBirdPoints,
         },
         advance_predictions: {
-          enabled: preCopaAvailable && state.bracketEnabled,
+          // "Só classificação" É o chaveamento — sempre ativo nesse modo
+          enabled: preCopaAvailable && (specialsOnly || state.bracketEnabled),
           lock: "tournament_start",
           points: {
             group_qualified: state.bracketPointsGroupQualified,
@@ -711,7 +714,8 @@ export default function CriarPage() {
               </div>
             )}
 
-            {/* Campeão */}
+            {/* Campeão — escondido no "só classificação" (chaveamento cobre) */}
+            {state.scopeType !== "specials_only" && (
             <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <div className="flex items-center justify-between">
                 <div>
@@ -724,13 +728,9 @@ export default function CriarPage() {
                       : `Cada um crava o campeão até ${effectivePreCopaLockLabel} (recomendado: 50)`}
                   </p>
                 </div>
-                {state.scopeType === "specials_only" ? (
-                  <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
-                ) : (
-                  <Toggle value={!effectivePreCopaLocked && state.championEnabled} onChange={(v) => update("championEnabled", v)} disabled={effectivePreCopaLocked} />
-                )}
+                <Toggle value={!effectivePreCopaLocked && state.championEnabled} onChange={(v) => update("championEnabled", v)} disabled={effectivePreCopaLocked} />
               </div>
-              {(state.championEnabled || state.scopeType === "specials_only") && (
+              {state.championEnabled && (
                 <div className="flex items-center justify-between">
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>Pontos</p>
                   <div className="flex items-center gap-2">
@@ -744,7 +744,10 @@ export default function CriarPage() {
               )}
             </div>
 
-            {/* Classificados por grupo */}
+            )}
+
+            {/* Classificados por grupo — escondido no "só classificação" */}
+            {state.scopeType !== "specials_only" && (
             <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <div className="flex items-center justify-between">
                 <div>
@@ -757,13 +760,9 @@ export default function CriarPage() {
                       : `1º e 2º de cada grupo, até ${effectivePreCopaLockLabel} (recomendado: 2 por time + 1 pela posição)`}
                   </p>
                 </div>
-                {state.scopeType === "specials_only" ? (
-                  <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
-                ) : (
-                  <Toggle value={!effectivePreCopaLocked && state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} disabled={effectivePreCopaLocked} />
-                )}
+                <Toggle value={!effectivePreCopaLocked && state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} disabled={effectivePreCopaLocked} />
               </div>
-              {(state.qualifiersEnabled || state.scopeType === "specials_only") && (
+              {state.qualifiersEnabled && (
                 <div className="flex items-center justify-between">
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>Pontos por time certo</p>
                   <div className="flex items-center gap-2">
@@ -777,6 +776,8 @@ export default function CriarPage() {
               )}
             </div>
 
+            )}
+
             {/* Bracket pré-Copa */}
             <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <div className="flex items-center justify-between">
@@ -787,13 +788,17 @@ export default function CriarPage() {
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
                     {effectivePreCopaLocked
                       ? "Indisponível: o bracket fecha no 1º jogo do bolão, que já aconteceu"
-                      : `Cada um preenche o chaveamento completo — de quem avança dos grupos até o campeão — até ${effectivePreCopaLockLabel}. Os pontos entram conforme a Copa confirma cada fase.`}
+                      : `Cada um preenche o chaveamento completo — 1º, 2º e 3º de cada grupo, os 8 melhores terceiros, fases e campeão — até ${effectivePreCopaLockLabel}. Os pontos entram conforme a Copa confirma cada fase.`}
                   </p>
                 </div>
-                <Toggle value={!effectivePreCopaLocked && state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} disabled={effectivePreCopaLocked} />
+                {state.scopeType === "specials_only" ? (
+                  <span className="text-[13px] font-semibold flex-shrink-0" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
+                ) : (
+                  <Toggle value={!effectivePreCopaLocked && state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} disabled={effectivePreCopaLocked} />
+                )}
               </div>
 
-              {!effectivePreCopaLocked && state.bracketEnabled && (
+              {!effectivePreCopaLocked && (state.bracketEnabled || state.scopeType === "specials_only") && (
                 <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
                   {[
                     { key: "bracketPointsGroupQualified" as const, label: "Avançou da fase de grupos", desc: "por seleção que você indicou e passou", rec: 2 },
@@ -1062,25 +1067,29 @@ export default function CriarPage() {
               />
               <ReviewRow
                 label="Campeão"
-                value={effectivePreCopaLocked
-                  ? "Indisponível (Copa em andamento)"
-                  : state.championEnabled || state.scopeType === "specials_only"
-                    ? `${state.championPoints} pts`
-                    : "Desligada"}
+                value={state.scopeType === "specials_only"
+                  ? "Incluído no chaveamento"
+                  : effectivePreCopaLocked
+                    ? "Indisponível (Copa em andamento)"
+                    : state.championEnabled
+                      ? `${state.championPoints} pts`
+                      : "Desligada"}
               />
               <ReviewRow
                 label="Classificados"
-                value={effectivePreCopaLocked
-                  ? "Indisponível (Copa em andamento)"
-                  : state.qualifiersEnabled || state.scopeType === "specials_only"
-                    ? `${state.qualifiersPoints} pts/time`
-                    : "Desligada"}
+                value={state.scopeType === "specials_only"
+                  ? "Incluído no chaveamento"
+                  : effectivePreCopaLocked
+                    ? "Indisponível (Copa em andamento)"
+                    : state.qualifiersEnabled
+                      ? `${state.qualifiersPoints} pts/time`
+                      : "Desligada"}
               />
               <ReviewRow
                 label="Bracket pré-Copa"
                 value={effectivePreCopaLocked
                   ? "Indisponível (Copa em andamento)"
-                  : state.bracketEnabled
+                  : state.bracketEnabled || state.scopeType === "specials_only"
                     ? `Campeão: ${state.bracketPointsChampion}pts · Oitavas: ${state.bracketPointsR16}pts`
                     : "Desligado"}
               />

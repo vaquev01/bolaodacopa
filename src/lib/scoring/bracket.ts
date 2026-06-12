@@ -38,8 +38,8 @@ export const DEFAULT_BRACKET_POINTS: BracketPoints = {
 
 /** Estado derivado do torneio real (apenas fases resolvidas — fases em andamento = vazias). */
 export interface BracketOutcome {
-  /** Mapa de código do grupo → { first, second } — só grupos totalmente disputados. */
-  groups: Record<string, { first: string; second: string }>;
+  /** Mapa de código do grupo → { first, second, third } — só grupos totalmente disputados. */
+  groups: Record<string, { first: string; second: string; third?: string }>;
   /** Times classificados (apareceram como 1º ou 2º de grupo, ou como melhores 3ºs). */
   qualified: string[];
   r32_teams: string[];
@@ -196,7 +196,7 @@ export function deriveBracketOutcome(
 
     const first = sorted[0];
     const second = sorted[1];
-    outcome.groups[groupCode] = { first, second };
+    outcome.groups[groupCode] = { first, second, third: sorted[2] };
 
     // Adicionar aos qualificados
     if (!outcome.qualified.includes(first)) outcome.qualified.push(first);
@@ -221,12 +221,22 @@ export function deriveBracketOutcome(
 
   // r32 — 32-avos (Copa 2026 tem esta fase)
   const r32Winners = extractWinners("r32");
+  // Participantes contam assim que o confronto está DEFINIDO (chaveamento
+  // divulgado), mesmo antes de ser jogado — "A definir" é placeholder do seed.
   const r32Participants: string[] = [];
-  for (const m of finished.filter((m) => m.stage === "r32")) {
-    if (!r32Participants.includes(m.home_team)) r32Participants.push(m.home_team);
-    if (!r32Participants.includes(m.away_team)) r32Participants.push(m.away_team);
+  for (const m of matches.filter((m) => m.stage === "r32")) {
+    for (const t of [m.home_team, m.away_team]) {
+      if (t && t !== "A definir" && !r32Participants.includes(t)) r32Participants.push(t);
+    }
   }
   outcome.r32_teams = r32Participants;
+
+  // Melhores 3ºs: quando o chaveamento real dos 16 avos existe, todo time que
+  // aparece nele e não era 1º/2º de grupo é um 3º que avançou — fonte oficial,
+  // sem reimplementar os critérios de desempate da FIFA.
+  for (const team of r32Participants) {
+    if (!outcome.qualified.includes(team)) outcome.qualified.push(team);
+  }
 
   // r16 — todos os times que participaram das oitavas (vencedores + perdedores)
   const r16Participants: string[] = [];
@@ -337,6 +347,22 @@ export function scoreBracket(
         if (actualTeamAtPos === team) {
           add(`group_${groupCode}_${team}`, points.group_position_exact);
         }
+      }
+    }
+  }
+
+  // ── Melhores 3ºs ──────────────────────────────────────────────────────────
+  // Cada 3º escolhido que realmente avançou vale group_qualified pts.
+  // Guard anti-dupla-contagem: se o time também foi marcado como 1º/2º de
+  // algum grupo (payload inconsistente), só a marcação de grupo pontua.
+  if (points.group_qualified > 0 && payload.third_qualifiers.length > 0) {
+    const pickedTop2 = new Set(
+      Object.values(payload.groups).flatMap((p) => p.slice(0, 2).filter(Boolean))
+    );
+    for (const team of payload.third_qualifiers) {
+      if (!team || pickedTop2.has(team)) continue;
+      if (outcome.qualified.includes(team)) {
+        add(`third_q_${team}`, points.group_qualified);
       }
     }
   }

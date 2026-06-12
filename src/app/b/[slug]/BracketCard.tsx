@@ -120,16 +120,22 @@ export default function BracketCard({
   const pts = ruleset.advance_predictions?.points;
   const activeGroups = GROUPS.filter((g) => groupTeams[g]?.length > 0);
 
-  // Progresso de grupos
+  // Progresso de grupos (1º + 2º + 3º)
   const completedGroups = activeGroups.filter((g) => {
     const p = payload.groups[g] ?? [];
-    return p[0] && p[1];
+    return p[0] && p[1] && p[2];
   }).length;
 
-  // Derivar lista de qualificados a partir dos picks de grupo
+  // Candidatos a melhores 3ºs = o 3º marcado em cada grupo
+  const thirdCandidates = activeGroups
+    .map((g) => (payload.groups[g] ?? [])[2])
+    .filter((t): t is string => Boolean(t));
+
+  // Derivar lista de qualificados: 1º e 2º de cada grupo + os 8 melhores 3ºs
+  // escolhidos (groups[g][2] é o 3º do grupo — candidato, não classificado)
   const qualifiedFromGroups: string[] = [];
   for (const g of activeGroups) {
-    const picks = payload.groups[g] ?? [];
+    const picks = (payload.groups[g] ?? []).slice(0, 2);
     for (const t of picks) {
       if (t && !qualifiedFromGroups.includes(t)) qualifiedFromGroups.push(t);
     }
@@ -142,21 +148,41 @@ export default function BracketCard({
 
   function handleGroupChipTap(group: string, team: string) {
     setPayload((p) => {
-      const cur = p.groups[group] ?? ["", ""];
-      const [p1, p2] = cur;
+      const cur = p.groups[group] ?? ["", "", ""];
+      const [p1 = "", p2 = "", p3 = ""] = cur;
       let next: string[];
-      if (p1 === team) {
-        next = [p2, ""];
-      } else if (p2 === team) {
-        next = [p1, ""];
-      } else if (!p1) {
-        next = [team, p2 === team ? "" : p2];
-      } else if (!p2) {
-        next = [p1, team];
-      } else {
-        next = [p1, team];
-      }
-      return { ...p, groups: { ...p.groups, [group]: next } };
+      // Tap em time marcado desmarca; em time livre ocupa a primeira posição
+      // vaga (1º → 2º → 3º); com tudo cheio, substitui o 3º.
+      if (p1 === team) next = ["", p2, p3];
+      else if (p2 === team) next = [p1, "", p3];
+      else if (p3 === team) next = [p1, p2, ""];
+      else if (!p1) next = [team, p2, p3];
+      else if (!p2) next = [p1, team, p3];
+      else next = [p1, p2, team];
+
+      const groups = { ...p.groups, [group]: next };
+      // Melhores 3ºs só podem conter quem segue marcado como 3º de um grupo
+      const validThirds = new Set(
+        Object.values(groups).map((g) => g[2]).filter(Boolean)
+      );
+      return {
+        ...p,
+        groups,
+        third_qualifiers: p.third_qualifiers.filter((t) => validThirds.has(t)),
+      };
+    });
+    setStatus("idle");
+  }
+
+  function toggleThirdQualifier(team: string) {
+    setPayload((p) => {
+      const cur = p.third_qualifiers;
+      const next = cur.includes(team)
+        ? cur.filter((t) => t !== team)
+        : cur.length < 8
+          ? [...cur, team]
+          : cur; // máximo 8
+      return { ...p, third_qualifiers: next };
     });
     setStatus("idle");
   }
@@ -255,7 +281,8 @@ export default function BracketCard({
               Bracket pré-Copa
             </h2>
             <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-              Escolha 1º e 2º de cada grupo — depois o mata-mata se monta.
+              Escolha 1º, 2º e 3º de cada grupo, os 8 melhores terceiros — e o
+              mata-mata se monta sozinho.
             </p>
           </div>
           {lockAt && countdownLabel && (
@@ -305,33 +332,33 @@ export default function BracketCard({
 
       {/* Grupos */}
       {activeGroups.length > 0 && (
-        <Section title="Grupos — 1º e 2º classificados" progress={`${completedGroups}/${activeGroups.length}`}>
+        <Section title="Grupos — 1º, 2º e 3º de cada grupo" progress={`${completedGroups}/${activeGroups.length}`}>
           {activeGroups.map((g) => {
             const teamList = groupTeams[g] ?? [];
-            const picks = payload.groups[g] ?? ["", ""];
-            const [p1, p2] = picks;
+            const picks = payload.groups[g] ?? ["", "", ""];
+            const [p1 = "", p2 = "", p3 = ""] = picks;
             return (
               <div key={g} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
                     Grupo {g}
                   </span>
-                  {p1 && p2 && (
+                  {p1 && p2 && p3 && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-badge"
                       style={{ background: "var(--color-success)", color: "#fff" }}>
                       OK
                     </span>
                   )}
-                  {(p1 || p2) && !(p1 && p2) && (
+                  {(p1 || p2 || p3) && !(p1 && p2 && p3) && (
                     <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
-                      falta {!p1 ? "1º" : "2º"}
+                      falta {!p1 ? "1º" : !p2 ? "2º" : "3º"}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {teamList.map((team) => {
-                    const chipState: "none" | "first" | "second" =
-                      p1 === team ? "first" : p2 === team ? "second" : "none";
+                    const chipState: "none" | "first" | "second" | "third" =
+                      p1 === team ? "first" : p2 === team ? "second" : p3 === team ? "third" : "none";
                     return (
                       <GroupChip
                         key={team}
@@ -345,6 +372,29 @@ export default function BracketCard({
               </div>
             );
           })}
+        </Section>
+      )}
+
+      {/* Melhores 3ºs */}
+      {thirdCandidates.length > 0 && (
+        <Section
+          title={`Melhores terceiros — ${pts?.group_qualified ?? 2} pts/seleção`}
+          progress={`${payload.third_qualifiers.length}/8`}
+        >
+          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+            Na Copa 2026, os 8 melhores terceiros também avançam. Quais dos seus
+            terceiros vão pro mata-mata?
+          </p>
+          <TeamChips
+            teams={thirdCandidates}
+            selected={payload.third_qualifiers}
+            onToggle={toggleThirdQualifier}
+          />
+          {payload.third_qualifiers.length === 8 && (
+            <p className="text-[11px] font-semibold" style={{ color: "var(--color-success)" }}>
+              8 escolhidos ✓
+            </p>
+          )}
         </Section>
       )}
 
@@ -541,22 +591,24 @@ function GroupChip({
   onClick,
 }: {
   team: string;
-  state: "none" | "first" | "second";
+  state: "none" | "first" | "second" | "third";
   onClick: () => void;
 }) {
   const flag = getFlag(team);
 
   const bg =
     state === "first" ? "var(--color-accent)"
-    : state === "second" ? "transparent"
+    : state === "second" || state === "third" ? "transparent"
     : "var(--color-bg-secondary)";
 
   const border =
-    state === "second" ? "1.5px solid var(--color-accent)" : "1.5px solid transparent";
+    state === "second" ? "1.5px solid var(--color-accent)"
+    : state === "third" ? "1.5px dashed var(--color-accent)"
+    : "1.5px solid transparent";
 
   const color =
     state === "first" ? "#fff"
-    : state === "second" ? "var(--color-accent)"
+    : state === "second" || state === "third" ? "var(--color-accent)"
     : "var(--color-text-secondary)";
 
   return (
@@ -584,7 +636,7 @@ function GroupChip({
             lineHeight: 1,
           }}
         >
-          {state === "first" ? "1º" : "2º"}
+          {state === "first" ? "1º" : state === "second" ? "2º" : "3º"}
         </span>
       )}
     </button>

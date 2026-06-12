@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import BolaoClient from "./BolaoClient";
 import { redirect } from "next/navigation";
 import { parseRuleset } from "@/lib/scoring";
+import { computeLiveBracketPoints } from "@/lib/bracket-live";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -163,16 +164,14 @@ export default async function BolaoPage({ params }: Props) {
     specialPtsByUser.set(uid, (specialPtsByUser.get(uid) ?? 0) + pts);
   }
 
-  // Pontos de bracket por usuário (se feature habilitada)
+  // Pontos de bracket por usuário, calculados live do estado atual dos jogos
+  // (não dependem mais de bracket_scores persistido pelo owner)
   const bracketEnabled = ruleset.advance_predictions?.enabled === true;
   const bracketPtsByUser = new Map<string, number>();
   if (bracketEnabled) {
-    const { data: bracketScoresRaw } = await supabase
-      .from("bracket_scores")
-      .select("user_id, points")
-      .eq("pool_id", pool.id);
-    for (const row of bracketScoresRaw ?? []) {
-      bracketPtsByUser.set(row.user_id as string, (row.points as number) ?? 0);
+    const liveBracket = await computeLiveBracketPoints(supabase, pool.id, ruleset);
+    for (const [uid, { points }] of Array.from(liveBracket.entries())) {
+      bracketPtsByUser.set(uid, points);
     }
   }
 

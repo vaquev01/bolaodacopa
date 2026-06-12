@@ -12,8 +12,9 @@ Plataforma onde qualquer pessoa cria e administra seu próprio bolão da Copa do
 - ✅ API routes + UI das telas core (landing, wizard `/criar`, `/b/[slug]` palpites+ranking, admin, convite WhatsApp). Wizard com "(recomendado: X)" guiando o preenchimento; regras avançadas expõem vencedor+saldo, empate e consolação como steppers opcionais
 - ✅ **Calendário oficial completo: 104 jogos** sincronizados da API football-data.org (abertura 11/06 19:00 UTC → final 19/07), nomes pt-BR, mata-mata como "A definir" até classificação
 - ✅ Smoke test end-to-end validado contra Supabase real: criar perfil → criar bolão → entrar → palpitar → lançar resultado → pontos calculados (exato=10, vencedor+saldo=5)
-- ⏳ Sync automático de placares via cron (token no Keychain `keli-vault/football-data`) — follow-up
-- ⏳ Deploy Vercel — follow-up
+- ✅ **Sync automático de placares** (`/api/sync-results` + LaunchAgent a cada 10 min): football-data.org → resultado oficial em todos os bolões, idempotente, reverte edição manual errada. Resultados da Copa real já fluindo (México 2×0, Coreia do Sul 2×1). Pontos de bracket calculados on-read (`src/lib/bracket-live.ts`) — sempre atuais
+- ✅ Servidor local resiliente: LaunchAgents `com.keli.bolao-server` (KeepAlive) + `com.keli.bolao-sync`
+- ⏳ Deploy Vercel — blocker: `vercel login` (Victor) + domínio definitivo; `vercel.json` com cron já pronto
 
 ### Rodar local
 

@@ -1,6 +1,19 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-11 18:10 (v1.2 redesign completo + identidade visual)
+**Atualizado:** 2026-06-12 10:10 (v1.3 sync automático de placares + ops resiliente)
+
+## v1.3 — Sync automático de placares (2026-06-12)
+
+A Copa começou (11/06) e os resultados agora entram sozinhos:
+
+- **Pipeline**: `src/lib/sync/` (fd.ts normalizer + plan.ts diff puro + index.ts orquestrador) → rota `POST/GET /api/sync-results` (auth: `x-cron-secret` ou `Bearer CRON_SECRET`). Busca FINISHED da football-data.org, aplica via `set_match_result` (perfil sistema), repontua TODOS os pools via `save_scores`. Idempotente — 10 unit tests (117/117 total)
+- **Resultados reais já sincronizados**: México 2×0 África do Sul (abertura) e Coreia do Sul 2×1 Tchéquia — provas no `/tmp/bolao-sync.log`. Teste de correção: placar vandalizado 1×1 → sync reverteu pro oficial sozinho
+- **Bracket on-read**: pontos de bracket agora calculados live (`src/lib/bracket-live.ts`) no ranking (page.tsx) e no GET brackets — não dependem mais do owner lançar resultado manual. Smoke contra banco real ok
+- **Ops via launchd (não cron!)**: `com.keli.bolao-server` (next start, KeepAlive) + `com.keli.bolao-sync` (a cada 600s). Lição: daemon cron NÃO acessa o login Keychain (`security` falha) — LaunchAgent gui session funciona. Log: `/tmp/bolao-sync.log`
+- **Credenciais**: perfil sistema "Keli Sync" (Keychain `keli-vault/bolao-sync`, formato `uid:secret`, owner do pool `_sistema_sync`), `keli-vault/bolao-cron` (CRON_SECRET). Espelhadas em `.env.local` p/ o Next. Vercel: `vercel.json` com cron */10 já pronto (env vars FOOTBALL_DATA_TOKEN, SYNC_USER_ID, SYNC_USER_SECRET, CRON_SECRET)
+- **Prediction de teste viva**: pool sistema tem palpite 2×1 em Canadá×Bósnia (12/06 19:00 UTC) — quando terminar, o sync deve pontuar sozinho (conferir `scored:1` no log)
+- ⚠️ **Vulnerabilidade descoberta**: `set_match_result` aceita qualquer owner de pool (resultado é GLOBAL) e `save_scores` não exige credencial. Mitigação ativa: sync reverte vandalismo a cada 10 min. Fix real: `supabase/migrations/20260612_sync_hardening.sql` (PENDENTE — precisa acesso admin; instruções no arquivo)
+- ⚠️ **Schema init não versionado**: aplicado via MCP em sessão anterior, repo não tem o SQL. Ao reconectar MCP Supabase: dump `pg_get_functiondef` das RPCs + DDL das 8 tabelas → versionar
 
 ## v1.2 — Redesign UX/UI + identidade (2026-06-11, tarde/noite)
 
@@ -14,9 +27,9 @@ Pedido do Victor: "experiência muito prática e bonita" + "chamar todos agentes
 - Ajustes finais (Keli): labels de pontos sem cara de link, tab ativa em acento, landing equilibrada
 - 107/107 testes, build limpo, servidor 3017 com build novo
 
-## Acesso externo (resolvido parcialmente 2026-06-11)
+## Acesso externo (atualizado 2026-06-12)
 
-- **Túnel ativo**: https://constitution-moment-nations-calendar.trycloudflare.com (cloudflared quick tunnel, porta 3017, processo no Mac — frágil, morre se Mac desligar)
+- **Túnel ativo**: https://wins-childrens-using-exercise.trycloudflare.com (quick tunnel, porta 3017 — URL anterior morreu junto com o processo; quick tunnel muda de URL a cada restart, por isso NÃO convidar o grupo por ela)
 - ngrok NÃO disponível p/ 3017 (ocupado pelo dashboard Keli na 8100, URL fixa)
 - **Deploy Vercel PENDENTE**: bloqueado em credencial — Victor precisa rodar `vercel login` (sem token no vault). ⚠️ Cookies de identidade são presos ao domínio: migrar de túnel→Vercel = participantes perdem conta. Definir domínio definitivo ANTES de convidar o grupo
 - ⏰ Lock do bracket (escopo full) PASSOU: 11/06 16:00 Brasília (abertura). Bolões full criados agora já nascem com bracket travado
@@ -110,8 +123,8 @@ Top 3 recomendados: **openfootball/worldcup.json** (CC0, fixtures 2026 auto-atua
 
 ## Próximo passo
 
-- Sync automático de placares: rota/cron (Vercel Cron) usando token `keli-vault/football-data` + cross-check openfootball/worldcup.json
-- Adicionar `profiles` join no select de predictions para exibir nomes no ranking
-- Deploy Vercel (env vars + domínio — blocker: nome do produto)
-- Bandeiras via `flag-icons` (npm) no lugar de emoji
+- **Deploy Vercel** (único blocker do Victor: `vercel login` + decidir domínio ANTES de convidar o grupo — cookies presos ao domínio)
+- Aplicar `20260612_sync_hardening.sql` quando MCP Supabase reconectar (fecha vuln de resultado global)
+- Versionar schema init (dump via MCP)
 - Considerar Supabase Realtime no ranking
+- Cross-check openfootball/worldcup.json como 2ª fonte do sync (hoje: football-data only)

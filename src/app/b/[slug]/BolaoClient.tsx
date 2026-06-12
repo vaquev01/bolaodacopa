@@ -844,7 +844,7 @@ function MatchCard({
           </div>
         ) : isFinished ? (
           <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-            {pred ? "0 pts" : "Sem palpite"}
+            {pred ? "0 pts" : "Sem palpite — fora da pontuação"}
           </span>
         ) : !isBlocked && countdown ? (
           <span

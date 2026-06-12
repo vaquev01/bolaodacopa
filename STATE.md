@@ -2,6 +2,15 @@
 
 **Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
 
+## v1.4.1 — "Só classificação" liberado com Copa em andamento (2026-06-12)
+
+Victor: "pode liberar o jogo" + "jogos que já ocorreram desconsiderados da pontuação (deixar ali)".
+
+- **Lock contornado sem DDL**: servidor trava pré-Copa no 1º jogo do ESCOPO → bolão "só classificação" criado agora nasce com `scope {type:"custom", match_ids:[jogos após amanhã 23:59], variant:"specials_only"}`. Grupo palpita campeão/classificados até o 1º jogo de depois de amanhã. Smoke real: palpite de campeão aceito `{ok:true}` (antes: `deadline_passed`)
+- **UI**: page.tsx trata `variant === "specials_only"` (igual ao nativo; match_ids só definem o lock; deadline dos especiais = 1º jogo do escopo). Wizard mostra prazo real em todos os cards (`effectivePreCopaLock*`)
+- **Jogos passados**: ficam visíveis como histórico; card encerrado sem palpite mostra "Sem palpite — fora da pontuação" (ninguém pontua neles por construção — deadline server-side)
+- Pools smoke do sistema: `sistema-smoke-winner-cjcnj`, `sistema-smoke-late-specials-su2i5` (+ `sistema-smoke-specials` que confirmou o deadline_passed)
+
 ## v1.4 — Modo de palpite + jornada guiada (2026-06-12, manhã)
 
 Feedback do Victor testando local: regras sem contexto de prazo, tela de preenchimento "pobre", faltava opção de palpitar só o vencedor.

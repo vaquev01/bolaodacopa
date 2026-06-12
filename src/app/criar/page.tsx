@@ -153,6 +153,32 @@ export default function CriarPage() {
   const deadlineLabel =
     DEADLINE_OPTIONS.find((o) => o.value === state.deadlineMinutes)?.label ?? "15 min antes";
 
+  // ── "Só classificação" com a Copa em andamento ────────────────────────────
+  // O servidor trava palpites pré-Copa no 1º jogo do ESCOPO do bolão. Para
+  // liberar o modo classificação mesmo com a Copa rolando, o escopo passa a
+  // ser "jogos depois de amanhã": o grupo ganha até o fim de amanhã para
+  // palpitar, e o lock real vira o 1º jogo depois desse corte.
+  const lateCutoffMs = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  })();
+  const lateLockMatches = matches.filter(
+    (m) => new Date(m.kickoff_at).getTime() > lateCutoffMs
+  );
+  const lateLockAt = lateLockMatches.length > 0 ? lateLockMatches[0].kickoff_at : null;
+  const lateSpecials =
+    preCopaLocked && state.scopeType === "specials_only" && lateLockAt !== null;
+  // Lock efetivo exibido/aplicado nos palpites pré-Copa
+  const effectivePreCopaLocked = lateSpecials ? false : preCopaLocked;
+  const effectivePreCopaLockLabel = lateSpecials
+    ? (() => {
+        const { date, time } = formatKickoff(lateLockAt!);
+        return `${date} às ${time}`;
+      })()
+    : preCopaLockLabel;
+
   async function handleCreate() {
     setError(null);
     setLoading(true);
@@ -181,7 +207,9 @@ export default function CriarPage() {
       const specialsOnly = state.scopeType === "specials_only";
       // Pré-Copa travado (1º jogo do bolão já começou) → essas apostas não
       // podem mais ser preenchidas; criar o bolão com elas desligadas.
-      const preCopaAvailable = !preCopaLocked;
+      // Exceção: "só classificação" com Copa em andamento usa escopo de jogos
+      // futuros, que empurra o lock para depois de amanhã (lateSpecials).
+      const preCopaAvailable = !effectivePreCopaLocked;
       const ruleset = {
         ...DEFAULT_RULESET,
         prediction_mode: state.predictionMode,
@@ -239,7 +267,16 @@ export default function CriarPage() {
         state.scopeType === "full"
           ? { type: "full" }
           : specialsOnly
-            ? { type: "specials_only" }
+            ? lateSpecials
+              ? {
+                  // Copa em andamento: escopo = jogos após o corte, só para
+                  // definir o lock dos palpites no servidor. A UI trata
+                  // variant === "specials_only" igual ao modo nativo.
+                  type: "custom",
+                  match_ids: lateLockMatches.map((m) => m.id),
+                  variant: "specials_only",
+                }
+              : { type: "specials_only" }
             : { type: "custom", match_ids: state.selectedMatches };
 
       const slug =
@@ -347,7 +384,9 @@ export default function CriarPage() {
                   {
                     id: "full" as const,
                     title: "Copa Inteira",
-                    sub: "Todos os 104 jogos do torneio",
+                    sub: preCopaLocked
+                      ? "Todos os 104 jogos — os que já aconteceram ficam como histórico, sem pontuar"
+                      : "Todos os 104 jogos do torneio",
                     icon: (
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                         <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5" />
@@ -372,7 +411,7 @@ export default function CriarPage() {
                     id: "specials_only" as const,
                     title: "Só classificação",
                     sub: preCopaLocked
-                      ? "Indisponível: esses palpites fecham quando a Copa começa — e ela já começou"
+                      ? "Classificados dos grupos e campeão — o grupo palpita até amanhã à noite"
                       : "Acertar classificados dos grupos e o campeão — sem placares",
                     icon: (
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -381,7 +420,10 @@ export default function CriarPage() {
                     ),
                   },
                 ].map((opt) => {
-                  const disabled = opt.id === "specials_only" && preCopaLocked;
+                  // "Só classificação" só fica indisponível se nem o corte de
+                  // amanhã tiver jogos futuros (fim da Copa)
+                  const disabled =
+                    opt.id === "specials_only" && preCopaLocked && lateLockAt === null;
                   return (
                   <button
                     key={opt.id}
@@ -517,9 +559,9 @@ export default function CriarPage() {
               </p>
               <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
                 <strong>Palpites de antes da Copa</strong> (campeão, classificados, bracket):{" "}
-                {preCopaLocked
+                {effectivePreCopaLocked
                   ? "ficam de fora deste bolão — eles fecham quando o 1º jogo começa, e a Copa já está em andamento."
-                  : `todo mundo preenche até ${preCopaLockLabel} (início do 1º jogo do bolão). Depois disso, trava para sempre.`}
+                  : `todo mundo preenche até ${effectivePreCopaLockLabel}. Depois disso, trava para sempre.`}
               </p>
             </div>
 
@@ -612,15 +654,15 @@ export default function CriarPage() {
                     Acertar o campeão 🏆
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {preCopaLocked
+                    {effectivePreCopaLocked
                       ? "Indisponível: fecha no 1º jogo do bolão, que já aconteceu"
-                      : `Cada um crava o campeão até ${preCopaLockLabel} (recomendado: 50)`}
+                      : `Cada um crava o campeão até ${effectivePreCopaLockLabel} (recomendado: 50)`}
                   </p>
                 </div>
                 {state.scopeType === "specials_only" ? (
                   <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
                 ) : (
-                  <Toggle value={!preCopaLocked && state.championEnabled} onChange={(v) => update("championEnabled", v)} disabled={preCopaLocked} />
+                  <Toggle value={!effectivePreCopaLocked && state.championEnabled} onChange={(v) => update("championEnabled", v)} disabled={effectivePreCopaLocked} />
                 )}
               </div>
               {(state.championEnabled || state.scopeType === "specials_only") && (
@@ -645,15 +687,15 @@ export default function CriarPage() {
                     Acertar os classificados
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {preCopaLocked
+                    {effectivePreCopaLocked
                       ? "Indisponível: fecha no 1º jogo do bolão, que já aconteceu"
-                      : `1º e 2º de cada grupo, até ${preCopaLockLabel} (recomendado: 2 por time + 1 pela posição)`}
+                      : `1º e 2º de cada grupo, até ${effectivePreCopaLockLabel} (recomendado: 2 por time + 1 pela posição)`}
                   </p>
                 </div>
                 {state.scopeType === "specials_only" ? (
                   <span className="text-[13px] font-semibold" style={{ color: "var(--color-accent)" }}>Sempre ativo</span>
                 ) : (
-                  <Toggle value={!preCopaLocked && state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} disabled={preCopaLocked} />
+                  <Toggle value={!effectivePreCopaLocked && state.qualifiersEnabled} onChange={(v) => update("qualifiersEnabled", v)} disabled={effectivePreCopaLocked} />
                 )}
               </div>
               {(state.qualifiersEnabled || state.scopeType === "specials_only") && (
@@ -678,15 +720,15 @@ export default function CriarPage() {
                     Bracket pré-Copa
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {preCopaLocked
+                    {effectivePreCopaLocked
                       ? "Indisponível: o bracket fecha no 1º jogo do bolão, que já aconteceu"
-                      : `Cada um preenche o chaveamento completo — de quem avança dos grupos até o campeão — até ${preCopaLockLabel}. Os pontos entram conforme a Copa confirma cada fase.`}
+                      : `Cada um preenche o chaveamento completo — de quem avança dos grupos até o campeão — até ${effectivePreCopaLockLabel}. Os pontos entram conforme a Copa confirma cada fase.`}
                   </p>
                 </div>
-                <Toggle value={!preCopaLocked && state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} disabled={preCopaLocked} />
+                <Toggle value={!effectivePreCopaLocked && state.bracketEnabled} onChange={(v) => update("bracketEnabled", v)} disabled={effectivePreCopaLocked} />
               </div>
 
-              {!preCopaLocked && state.bracketEnabled && (
+              {!effectivePreCopaLocked && state.bracketEnabled && (
                 <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
                   {[
                     { key: "bracketPointsGroupQualified" as const, label: "Avançou da fase de grupos", desc: "por seleção que você indicou e passou", rec: 2 },
@@ -955,7 +997,7 @@ export default function CriarPage() {
               />
               <ReviewRow
                 label="Campeão"
-                value={preCopaLocked
+                value={effectivePreCopaLocked
                   ? "Indisponível (Copa em andamento)"
                   : state.championEnabled || state.scopeType === "specials_only"
                     ? `${state.championPoints} pts`
@@ -963,7 +1005,7 @@ export default function CriarPage() {
               />
               <ReviewRow
                 label="Classificados"
-                value={preCopaLocked
+                value={effectivePreCopaLocked
                   ? "Indisponível (Copa em andamento)"
                   : state.qualifiersEnabled || state.scopeType === "specials_only"
                     ? `${state.qualifiersPoints} pts/time`
@@ -971,7 +1013,7 @@ export default function CriarPage() {
               />
               <ReviewRow
                 label="Bracket pré-Copa"
-                value={preCopaLocked
+                value={effectivePreCopaLocked
                   ? "Indisponível (Copa em andamento)"
                   : state.bracketEnabled
                     ? `Campeão: ${state.bracketPointsChampion}pts · Oitavas: ${state.bracketPointsR16}pts`
@@ -1005,9 +1047,9 @@ export default function CriarPage() {
               <ReviewRow label="Palpites fecham" value={`${deadlineLabel} de cada jogo`} />
               <ReviewRow label="Edição de palpite" value={state.allowEdit ? "Permitida até o prazo" : "Bloqueada"} />
               </>)}
-              {!preCopaLocked && preCopaLockLabel &&
+              {!effectivePreCopaLocked && effectivePreCopaLockLabel &&
                 (state.championEnabled || state.qualifiersEnabled || state.bracketEnabled || state.scopeType === "specials_only") && (
-                <ReviewRow label="Pré-Copa trava em" value={preCopaLockLabel} />
+                <ReviewRow label="Pré-Copa trava em" value={effectivePreCopaLockLabel} />
               )}
             </div>
 

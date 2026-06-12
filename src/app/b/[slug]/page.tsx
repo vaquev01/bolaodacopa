@@ -48,8 +48,10 @@ export default async function BolaoPage({ params }: Props) {
   }
 
   const ruleset = parseRuleset(pool.ruleset);
-  const scope = pool.scope as { type: string; match_ids?: string[] };
-  const isSpecialsOnly = scope.type === "specials_only";
+  const scope = pool.scope as { type: string; match_ids?: string[]; variant?: string };
+  // variant === "specials_only": bolão de classificação criado com a Copa em
+  // andamento — o escopo custom existe só para definir o lock no servidor.
+  const isSpecialsOnly = scope.type === "specials_only" || scope.variant === "specials_only";
 
   // Buscar jogos do escopo (para specials_only ainda precisamos para derivar times/grupos e deadline)
   let matchQuery = supabase
@@ -57,7 +59,7 @@ export default async function BolaoPage({ params }: Props) {
     .select("id, stage, group_label, home_team, away_team, kickoff_at, status, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner")
     .order("kickoff_at", { ascending: true });
 
-  if (scope.type === "custom" && scope.match_ids?.length) {
+  if (scope.type === "custom" && scope.match_ids?.length && !isSpecialsOnly) {
     matchQuery = matchQuery.in("id", scope.match_ids);
   }
 
@@ -118,9 +120,15 @@ export default async function BolaoPage({ params }: Props) {
   }
   const teams = Array.from(teamsSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  // Deadline dos especiais = kickoff do primeiro jogo do escopo
-  const deadlineAt = matchList.length > 0
-    ? matchList.reduce((min, m) => m.kickoff_at < min ? m.kickoff_at : min, matchList[0].kickoff_at)
+  // Deadline dos especiais = kickoff do primeiro jogo do escopo.
+  // Em bolão de classificação criado durante a Copa (variant specials_only),
+  // o escopo real são os match_ids — o lock é o 1º jogo deles.
+  const deadlineMatches =
+    scope.variant === "specials_only" && scope.match_ids?.length
+      ? matchList.filter((m) => scope.match_ids!.includes(m.id))
+      : matchList;
+  const deadlineAt = deadlineMatches.length > 0
+    ? deadlineMatches.reduce((min, m) => m.kickoff_at < min ? m.kickoff_at : min, deadlineMatches[0].kickoff_at)
     : null;
 
   // ── Palpites de placar (só se não for specials_only) ─────────────────────

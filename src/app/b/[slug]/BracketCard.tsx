@@ -5,6 +5,7 @@ import type { Ruleset } from "@/lib/scoring";
 import type { Match } from "@/lib/types";
 import { getFlag } from "@/lib/utils";
 import BracketBoard from "./BracketBoard";
+import KnockoutTreeEditor from "./KnockoutTreeEditor";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -119,6 +120,14 @@ export default function BracketCard({
 
   const pts = ruleset.advance_predictions?.points;
   const activeGroups = GROUPS.filter((g) => groupTeams[g]?.length > 0);
+
+  // Mapa time → grupo (para KnockoutTreeEditor resolver slots de 3ºs)
+  const teamGroupMap: Record<string, string> = {};
+  for (const g of activeGroups) {
+    for (const t of groupTeams[g] ?? []) {
+      teamGroupMap[t] = g;
+    }
+  }
 
   // Progresso de grupos (1º + 2º + 3º)
   const completedGroups = activeGroups.filter((g) => {
@@ -428,124 +437,44 @@ export default function BracketCard({
         </Section>
       )}
 
-      {/* Mata-mata: mobile = empilhado; desktop = colunas lado a lado (árvore de chaveamento) */}
+      {/* Mata-mata — árvore de chaveamento interativa */}
       {qualifiedFromGroups.length > 0 && (
         <div
           className="rounded-card p-4"
           style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
         >
-          <h3 className="text-[13px] font-semibold mb-3" style={{ color: "var(--color-text-secondary)" }}>
-            Mata-mata — seleções que avançam
-          </h3>
-
-          {/* Oitavas: 32 candidatos — grade que envolve a largura toda,
-              não uma coluna estreita */}
-          <div className="mb-4">
-            <p className="text-[12px] font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
-              Oitavas — {pts?.r16 ?? 2} pts
-            </p>
-            <p className="text-[12px] mb-2" style={{ color: "var(--color-text-secondary)" }}>
-              Quais seleções chegam às oitavas?
-            </p>
-            <TeamChips
-              teams={qualifiedFromGroups}
-              selected={payload.r16_winners}
-              onToggle={(t) => toggleKO("r16_winners", t)}
-            />
-          </div>
-
-          {/* Mobile: empilhado; lg+: flex row com colunas por fase */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:gap-0 lg:items-start lg:overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
-
-            {/* Quartas */}
-            {payload.r16_winners.length > 0 && (
-              <KOPhaseColumn
-                title={`Quartas — ${pts?.qf ?? 3} pts`}
-                teams={payload.r16_winners}
-                selected={payload.qf_winners}
-                onToggle={(t) => toggleKO("qf_winners", t)}
-                isFirst
-              />
-            )}
-
-            {/* Semis */}
-            {payload.qf_winners.length > 0 && (
-              <>
-                <PhaseConnector />
-                <KOPhaseColumn
-                  title={`Semis — ${pts?.sf ?? 5} pts`}
-                  teams={payload.qf_winners}
-                  selected={payload.sf_winners}
-                  onToggle={(t) => toggleKO("sf_winners", t)}
-                />
-              </>
-            )}
-
-            {/* Finalistas */}
-            {payload.sf_winners.length > 0 && (
-              <>
-                <PhaseConnector />
-                <KOPhaseColumn
-                  title={`Final — ${pts?.final ?? 8} pts`}
-                  teams={payload.sf_winners}
-                  selected={payload.finalists}
-                  onToggle={(t) => toggleKO("finalists", t)}
-                />
-              </>
-            )}
-
-            {/* Campeão */}
-            {payload.finalists.length > 0 && (
-              <>
-                <PhaseConnector />
-                <div className="flex-shrink-0 flex flex-col gap-2 lg:min-w-[180px]">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-bold" style={{ color: "var(--color-gold)" }}>
-                      Campeão
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-badge"
-                      style={{ background: "var(--color-gold)", color: "#1D1D1F" }}>
-                      {pts?.champion ?? 25} pts
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {payload.finalists.map((t) => (
-                      <PodiumChip
-                        key={t}
-                        team={t}
-                        selected={payload.champion === t}
-                        label="Campeão"
-                        onClick={() => setChampion(t)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* 3º lugar — faixa abaixo, sempre full-width */}
-          {payload.sf_winners.length > 0 && (
-            <div
-              className="mt-4 pt-4"
-              style={{ borderTop: "1px solid var(--border-subtle)" }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                  3º lugar — {pts?.third_place ?? 8} pts
-                </span>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[13px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+              Mata-mata
+            </h3>
+            {pts && (
+              <div className="flex flex-wrap gap-1 justify-end">
+                {[
+                  ["Oitavas", pts.r16],
+                  ["Quartas", pts.qf],
+                  ["Semis", pts.sf],
+                  ["Final", pts.final],
+                  ["Campeão", pts.champion],
+                ].map(([label, val]) => (
+                  <span key={label as string}
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-badge"
+                    style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}>
+                    {label}: {val}
+                  </span>
+                ))}
               </div>
-              <TeamChips
-                teams={
-                  payload.sf_winners.filter((t) => !payload.finalists.includes(t)).length > 0
-                    ? payload.sf_winners.filter((t) => !payload.finalists.includes(t))
-                    : payload.sf_winners
-                }
-                selected={payload.third_place ? [payload.third_place] : []}
-                onToggle={setThirdPlace}
-              />
-            </div>
-          )}
+            )}
+          </div>
+          <KnockoutTreeEditor
+            payload={payload}
+            groupTeams={groupTeams}
+            teamGroup={teamGroupMap}
+            onChange={(newPayload) => {
+              setPayload(newPayload);
+              setStatus("idle");
+            }}
+            locked={locked}
+          />
         </div>
       )}
 

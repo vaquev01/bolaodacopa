@@ -2,6 +2,15 @@
 
 **Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
 
+## v1.6 — Árvore de chaveamento REAL (2026-06-12, ~12h)
+
+Victor: "cadê o caralho da visão em chaveamento" — as listas de chips por fase não eram bracket. Agora é:
+
+- **Pareamento oficial FIFA codificado**: `src/lib/scoring/wc26-pairings.ts` (R32 jogos 73–88 com slots "1A"/"2B"/"3º de C/E/F/H/I", árvore até a final 104; fonte Wikipedia/FIFA conferida 2026-06-12 — zero cruzamento inventado)
+- **KnockoutTreeEditor** (novo, substitui as listas): os 16 confrontos dos 16 avos se montam SOZINHOS dos picks de grupo (1ºA cai no jogo certo); slots de melhor 3º abrem picker só com os 3ºs elegíveis pelo grupo; tocar no time = vence e avança pro slot seguinte, com cascata limpa ao trocar; final no fim com campeão + disputa de 3º. Payload schema INTOCADO (r16_winners etc.) — scoring e servidor inalterados
+- **Layout**: 1ª versão bilateral (9 col grid) QUEBROU na prova visual (transbordo) → corrigida para árvore unilateral 5 colunas flex (16 avos dita a altura, fases seguintes space-around), conectores removidos por ora. Mobile: tabs por fase
+- Prova: 130/130 testes, build limpo; validação visual por screenshot na 1ª rodada (detectou o transbordo) e por medição DOM na 2ª (colunas lado a lado x=59/277/495..., tela do Mac bloqueada p/ pixel)
+
 ## v1.5.2 — Densidade desktop + prova visual (2026-06-12, ~11h40)
 
 Victor: "aproveitamento de tela ruim, cadê a skill de design?". Stack completo rodado: cre-ux (gates design-dna/apple-design) → screenshot real via keli-browser → cre-critic (nota 4,5 na 1ª rodada) → fixes → re-screenshot (página caiu de 5928px para 2964px de altura).

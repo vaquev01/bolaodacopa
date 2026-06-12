@@ -21,7 +21,7 @@ Plataforma onde qualquer pessoa cria e administra seu próprio bolão da Copa do
 - ✅ Servidor local resiliente: LaunchAgents `com.keli.bolao-server` (KeepAlive) + `com.keli.bolao-sync`
 - ✅ **Processo de design com prova visual** (v1.5.2): mudanças de UI passam por screenshot real (keli-browser) + crítica fresh-eyes (cre-critic) antes de entregar — métrica da rodada: altura da tab Bracket caiu de 5928px para 2964px
 - ⏳ Deploy Vercel — blocker: `vercel login` (Victor) + domínio definitivo; `vercel.json` com cron já pronto
-- ⏳ Polish futuro: linhas conectoras SVG entre fases do mata-mata (estilo chaveamento de jornal)
+- ✅ **v1.6 — árvore de chaveamento real**: pareamento oficial FIFA (`wc26-pairings.ts`, 16 avos→final, fonte citada) + `KnockoutTreeEditor` — confrontos montados sozinhos dos picks de grupo, slots de melhor 3º com picker por elegibilidade, tocar no time = avança (cascata limpa), árvore unilateral 5 colunas em desktop, tabs por fase no mobile. Payload/scoring intocados
 
 ### Rodar local
 

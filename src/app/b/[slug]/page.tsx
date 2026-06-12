@@ -269,6 +269,7 @@ export default async function BolaoPage({ params }: Props) {
       isOwner={membership.role === "owner"}
       deadlineMinutes={ruleset.deadline.minutes_before}
       isSpecialsOnly={isSpecialsOnly}
+      isClassification={isClassification}
       teams={teams}
       groupTeams={groupTeams}
       deadlineAt={deadlineAt}

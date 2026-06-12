@@ -27,6 +27,9 @@ import {
 interface BracketBoardProps {
   matches: Match[];
   myBracket: Record<string, unknown> | null;
+  /** false quando o formulário editável está visível acima — evita repetir
+      os 12 grupos na mesma página (o form já os mostra). */
+  showGroups?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -93,7 +96,7 @@ function isMatchReal(m: Match): boolean {
 
 // ─── Componente principal ─────────────────────────────────────
 
-export default function BracketBoard({ matches, myBracket }: BracketBoardProps) {
+export default function BracketBoard({ matches, myBracket, showGroups = true }: BracketBoardProps) {
   const payload = parseBracketPayload(myBracket);
   const outcome = deriveBracketOutcome(toMatchInputs(matches));
 
@@ -119,13 +122,10 @@ export default function BracketBoard({ matches, myBracket }: BracketBoardProps) 
       {/* Legenda */}
       <BoardLegend />
 
-      {/* Fase de Grupos */}
-      {activeGroups.length > 0 && (
+      {/* Fase de Grupos — 4 colunas em desktop, 2-3 em tablet, 1 em mobile */}
+      {showGroups && activeGroups.length > 0 && (
         <BoardSection title="Fase de Grupos">
-          <div
-            className="grid gap-3"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {activeGroups.map((g) => (
               <GroupMiniCard
                 key={g}
@@ -146,15 +146,26 @@ export default function BracketBoard({ matches, myBracket }: BracketBoardProps) 
         </BoardSection>
       )}
 
-      {/* Mata-mata */}
-      <BoardSection title="Mata-mata">
-        <KnockoutTree
-          matches={matches}
-          payload={payload}
-          outcome={outcome}
-          stageMatches={stageMatches}
-        />
-      </BoardSection>
+      {/* Mata-mata — só quando a FIFA já definiu pelo menos um confronto.
+          Antes disso a árvore seria só "A definir" repetido: ruído puro. */}
+      {matches.some((m) => m.stage !== "group" && isMatchReal(m)) ? (
+        <BoardSection title="Mata-mata">
+          <KnockoutTree
+            matches={matches}
+            payload={payload}
+            outcome={outcome}
+            stageMatches={stageMatches}
+          />
+        </BoardSection>
+      ) : (
+        <BoardSection title="Mata-mata">
+          <p className="text-[13px] px-1" style={{ color: "var(--color-text-secondary)" }}>
+            Os cruzamentos oficiais aparecem aqui assim que a FIFA confirmar o
+            chaveamento (ao fim da fase de grupos) — aí dá pra comparar seu
+            palpite com o que aconteceu de verdade, fase a fase.
+          </p>
+        </BoardSection>
+      )}
     </div>
   );
 }
@@ -530,15 +541,14 @@ function KnockoutTree({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Scroll horizontal wrapper — mobile */}
+      {/* Wrapper: mobile = scroll horizontal; xl (>=1280px) = flex wrap sem scroll */}
       <div
-        className="overflow-x-auto pb-2"
+        className="overflow-x-auto xl:overflow-x-visible pb-2 xl:pb-0"
         style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
         aria-label="Fases do mata-mata — deslize para ver todas"
       >
-        {/* Desktop: colunas lado a lado; mobile: scroll horizontal */}
         <div
-          className="flex gap-3"
+          className="flex gap-3 xl:flex-wrap xl:gap-4"
           style={{ minWidth: "max-content" }}
         >
           {activeStages.map((stageInfo) => {

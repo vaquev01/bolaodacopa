@@ -2,6 +2,15 @@
 
 **Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
 
+## v1.5.2 — Densidade desktop + prova visual (2026-06-12, ~11h40)
+
+Victor: "aproveitamento de tela ruim, cadê a skill de design?". Stack completo rodado: cre-ux (gates design-dna/apple-design) → screenshot real via keli-browser → cre-critic (nota 4,5 na 1ª rodada) → fixes → re-screenshot (página caiu de 5928px para 2964px de altura).
+
+- **Modo classificação abre na tab Bracket** (ordem Bracket·Ranking·Placares; label "Placares (bônus)" + banner de bônus). Prop isClassification page→BolaoClient
+- **Densidade lg/xl**: tab bracket até 1400px; 12 grupos em grade 4 colunas (uma tela); melhores 3ºs em faixa; oitavas em grade wrap full-width; quartas→campeão em colunas progressivas (árvore); Salvar sticky bottom
+- **Board read-only enxuto**: showGroups=false junto do formulário (sem 24 cards duplicados); árvore do mata-mata real escondida até a FIFA definir cruzamentos (antes era ~60% da página de slots "A definir")
+- Mobile intocado (progressive enhancement atrás de lg:/xl:)
+
 ## v1.5.1 — 3ºs de verdade + consolidação (2026-06-12, ~11h)
 
 Feedback duro do Victor (tela do bolao-mkw8x, criado com bundle pré-v1.5): "cadê o 3º colocado, cadê a tabela completa, cadê os 3ºs no ranking, onde está o placar exato". Gaps reais encontrados e fechados:

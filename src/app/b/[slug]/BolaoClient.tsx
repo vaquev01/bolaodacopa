@@ -50,6 +50,7 @@ interface Props {
   isOwner: boolean;
   deadlineMinutes: number;
   isSpecialsOnly: boolean;
+  isClassification?: boolean;
   teams: string[];
   groupTeams: Record<string, string[]>;
   deadlineAt: string | null;
@@ -75,6 +76,7 @@ export default function BolaoClient({
   isOwner,
   deadlineMinutes,
   isSpecialsOnly,
+  isClassification = false,
   teams,
   groupTeams,
   deadlineAt,
@@ -87,9 +89,13 @@ export default function BolaoClient({
   bracketLocked = false,
 }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("palpites");
+  // Modo classificação: tab default é bracket (se disponível), senão palpites
+  const defaultTab: Tab = isClassification && bracketEnabled ? "bracket" : "palpites";
+  const [tab, setTab] = useState<Tab>(defaultTab);
 
   const hasSpecials = ruleset.special_bets.champion.enabled || ruleset.special_bets.qualifiers.enabled;
+  // specials_plus: modo classificação com palpites de placar como bônus
+  const isSpecialsPlus = isClassification && !isSpecialsOnly;
 
   const [localPreds, setLocalPreds] = useState<Record<string, PredPayload>>(() => {
     const map: Record<string, PredPayload> = {};
@@ -112,8 +118,15 @@ export default function BolaoClient({
   const doneCount = openMatches.filter((m) => localPreds[m.id] !== undefined).length;
   const totalOpen = openMatches.length;
 
-  const tabs: Tab[] = ["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])];
-  const tabLabels: Record<Tab, string> = { palpites: "Palpites", ranking: "Ranking", bracket: "Bracket" };
+  // Modo classificação: Bracket primeiro, Placares (bônus) por último
+  const tabs: Tab[] = isClassification && bracketEnabled
+    ? ["bracket", "ranking", "palpites"]
+    : ["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])];
+  const tabLabels: Record<Tab, string> = {
+    palpites: isClassification ? "Placares (bônus)" : "Palpites",
+    ranking: "Ranking",
+    bracket: "Bracket",
+  };
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "var(--color-bg-primary)" }}>
@@ -182,6 +195,36 @@ export default function BolaoClient({
       <div className="flex-1 overflow-y-auto pb-24">
         {tab === "palpites" && (
           <div className="flex flex-col">
+            {/* Banner de bônus — apenas no modo specials_plus */}
+            {isSpecialsPlus && ruleset.scoring.exact_score > 0 && (
+              <div className="px-4 pt-3 pb-0">
+                <div className="max-w-lg mx-auto">
+                  <div
+                    className="flex items-start gap-3 px-4 py-3 rounded-card"
+                    style={{
+                      background: "color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card))",
+                      border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
+                    }}
+                  >
+                    <div
+                      className="w-1.5 rounded-full flex-shrink-0 mt-0.5 self-stretch"
+                      style={{ background: "var(--color-accent)" }}
+                      aria-hidden="true"
+                    />
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                        Bônus opcional —
+                      </span>{" "}
+                      cravar o placar em cheio vale{" "}
+                      <span className="font-bold tabular-nums" style={{ color: "var(--color-accent)" }}>
+                        +{ruleset.scoring.exact_score} pts
+                      </span>
+                      . Errou? Não perde nada.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {hasSpecials && (
               <div className="px-4 pt-1 pb-1">
                 <div className="max-w-lg mx-auto">
@@ -231,7 +274,8 @@ export default function BolaoClient({
         )}
         {tab === "bracket" && bracketEnabled && (
           <div className="px-4 py-3">
-            <div className="max-w-lg mx-auto">
+            {/* Desktop: largura total até 1400px; mobile: coluna única sem alteração */}
+            <div className="max-w-lg lg:max-w-[1400px] mx-auto">
               <BracketCard
                 poolId={pool.id}
                 ruleset={ruleset}

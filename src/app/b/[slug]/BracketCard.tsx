@@ -273,17 +273,40 @@ export default function BracketCard({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Cabeçalho */}
+      {/* Cabeçalho — compacto em desktop (flex row) */}
       <div className="rounded-card p-4" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <h2 className="text-[17px] font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>
-              Bracket pré-Copa
-            </h2>
-            <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-              Escolha 1º, 2º e 3º de cada grupo, os 8 melhores terceiros — e o
-              mata-mata se monta sozinho.
-            </p>
+          <div className="flex-1 lg:flex lg:items-center lg:gap-4">
+            <div className="flex-shrink-0">
+              <h2 className="text-[17px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+                Bracket pré-Copa
+              </h2>
+              <p className="text-[13px] mt-0.5 lg:hidden" style={{ color: "var(--color-text-secondary)" }}>
+                Escolha 1º, 2º e 3º de cada grupo, os 8 melhores terceiros — e o
+                mata-mata se monta sozinho.
+              </p>
+            </div>
+            {pts && (
+              <div className="hidden lg:flex flex-wrap gap-1.5 mt-0">
+                {[
+                  ["Classificado", pts.group_qualified],
+                  ["Posição exata", `+${pts.group_position_exact}`],
+                  ["Oitavas", pts.r16],
+                  ["Quartas", pts.qf],
+                  ["Semis", pts.sf],
+                  ["Final", pts.final],
+                  ["3º lugar", pts.third_place],
+                  ["Vice", pts.runner_up],
+                  ["Campeão", pts.champion],
+                ].map(([label, val]) => (
+                  <span key={label as string}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-badge"
+                    style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}>
+                    {label}: {val}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {lockAt && countdownLabel && (
             <div className="flex flex-col items-end flex-shrink-0">
@@ -308,7 +331,7 @@ export default function BracketCard({
         </div>
 
         {pts && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-1.5 mt-3 lg:hidden">
             {[
               ["Classificado", pts.group_qualified],
               ["Posição exata", `+${pts.group_position_exact}`],
@@ -333,45 +356,52 @@ export default function BracketCard({
       {/* Grupos */}
       {activeGroups.length > 0 && (
         <Section title="Grupos — 1º, 2º e 3º de cada grupo" progress={`${completedGroups}/${activeGroups.length}`}>
-          {activeGroups.map((g) => {
-            const teamList = groupTeams[g] ?? [];
-            const picks = payload.groups[g] ?? ["", "", ""];
-            const [p1 = "", p2 = "", p3 = ""] = picks;
-            return (
-              <div key={g} className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                    Grupo {g}
-                  </span>
-                  {p1 && p2 && p3 && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-badge"
-                      style={{ background: "var(--color-success)", color: "#fff" }}>
-                      OK
+          {/* Desktop: 4 colunas (12 grupos = 3 linhas); tablet: 2-3 colunas; mobile: 1 coluna */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {activeGroups.map((g) => {
+              const teamList = groupTeams[g] ?? [];
+              const picks = payload.groups[g] ?? ["", "", ""];
+              const [p1 = "", p2 = "", p3 = ""] = picks;
+              return (
+                <div
+                  key={g}
+                  className="rounded-card p-3 flex flex-col gap-2"
+                  style={{ background: "var(--color-bg-secondary)" }}
+                >
+                  {/* Cabeçalho do grupo card — compacto */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+                      Grupo {g}
                     </span>
-                  )}
-                  {(p1 || p2 || p3) && !(p1 && p2 && p3) && (
-                    <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
-                      falta {!p1 ? "1º" : !p2 ? "2º" : "3º"}
-                    </span>
-                  )}
+                    {p1 && p2 && p3 ? (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-badge"
+                        style={{ background: "var(--color-success)", color: "#fff" }}>
+                        OK
+                      </span>
+                    ) : (p1 || p2 || p3) ? (
+                      <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
+                        falta {!p1 ? "1º" : !p2 ? "2º" : "3º"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {teamList.map((team) => {
+                      const chipState: "none" | "first" | "second" | "third" =
+                        p1 === team ? "first" : p2 === team ? "second" : p3 === team ? "third" : "none";
+                      return (
+                        <GroupChip
+                          key={team}
+                          team={team}
+                          state={chipState}
+                          onClick={() => handleGroupChipTap(g, team)}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {teamList.map((team) => {
-                    const chipState: "none" | "first" | "second" | "third" =
-                      p1 === team ? "first" : p2 === team ? "second" : p3 === team ? "third" : "none";
-                    return (
-                      <GroupChip
-                        key={team}
-                        team={team}
-                        state={chipState}
-                        onClick={() => handleGroupChipTap(g, team)}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </Section>
       )}
 
@@ -398,112 +428,142 @@ export default function BracketCard({
         </Section>
       )}
 
-      {/* Oitavas */}
+      {/* Mata-mata: mobile = empilhado; desktop = colunas lado a lado (árvore de chaveamento) */}
       {qualifiedFromGroups.length > 0 && (
-        <Section title={`Oitavas de final — ${pts?.r16 ?? 2} pts/seleção`}>
-          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-            Quais seleções chegam às oitavas?
-          </p>
-          <TeamChips
-            teams={qualifiedFromGroups}
-            selected={payload.r16_winners}
-            onToggle={(t) => toggleKO("r16_winners", t)}
-          />
-        </Section>
-      )}
-
-      {/* Quartas */}
-      {payload.r16_winners.length > 0 && (
-        <Section title={`Quartas de final — ${pts?.qf ?? 3} pts/seleção`}>
-          <TeamChips
-            teams={payload.r16_winners}
-            selected={payload.qf_winners}
-            onToggle={(t) => toggleKO("qf_winners", t)}
-          />
-        </Section>
-      )}
-
-      {/* Semis */}
-      {payload.qf_winners.length > 0 && (
-        <Section title={`Semifinais — ${pts?.sf ?? 5} pts/seleção`}>
-          <TeamChips
-            teams={payload.qf_winners}
-            selected={payload.sf_winners}
-            onToggle={(t) => toggleKO("sf_winners", t)}
-          />
-        </Section>
-      )}
-
-      {/* Finalistas */}
-      {payload.sf_winners.length > 0 && (
-        <Section title={`Finalistas — ${pts?.final ?? 8} pts/seleção`}>
-          <TeamChips
-            teams={payload.sf_winners}
-            selected={payload.finalists}
-            onToggle={(t) => toggleKO("finalists", t)}
-          />
-        </Section>
-      )}
-
-      {/* Campeão — destaque visual */}
-      {payload.finalists.length > 0 && (
         <div
-          className="rounded-card p-4 flex flex-col gap-3"
-          style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-gold)" }}
+          className="rounded-card p-4"
+          style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
         >
-          <div className="flex items-center justify-between">
-            <h3 className="text-[15px] font-bold" style={{ color: "var(--color-text-primary)" }}>
-              Campeão
-            </h3>
-            <span className="text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-badge"
-              style={{ background: "var(--color-gold)", color: "#1D1D1F" }}>
-              {pts?.champion ?? 25} pts
-            </span>
+          <h3 className="text-[13px] font-semibold mb-3" style={{ color: "var(--color-text-secondary)" }}>
+            Mata-mata — seleções que avançam
+          </h3>
+
+          {/* Oitavas: 32 candidatos — grade que envolve a largura toda,
+              não uma coluna estreita */}
+          <div className="mb-4">
+            <p className="text-[12px] font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
+              Oitavas — {pts?.r16 ?? 2} pts
+            </p>
+            <p className="text-[12px] mb-2" style={{ color: "var(--color-text-secondary)" }}>
+              Quais seleções chegam às oitavas?
+            </p>
+            <TeamChips
+              teams={qualifiedFromGroups}
+              selected={payload.r16_winners}
+              onToggle={(t) => toggleKO("r16_winners", t)}
+            />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {payload.finalists.map((t) => (
-              <PodiumChip
-                key={t}
-                team={t}
-                selected={payload.champion === t}
-                label="Campeão"
-                onClick={() => setChampion(t)}
+
+          {/* Mobile: empilhado; lg+: flex row com colunas por fase */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:gap-0 lg:items-start lg:overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+
+            {/* Quartas */}
+            {payload.r16_winners.length > 0 && (
+              <KOPhaseColumn
+                title={`Quartas — ${pts?.qf ?? 3} pts`}
+                teams={payload.r16_winners}
+                selected={payload.qf_winners}
+                onToggle={(t) => toggleKO("qf_winners", t)}
+                isFirst
               />
-            ))}
+            )}
+
+            {/* Semis */}
+            {payload.qf_winners.length > 0 && (
+              <>
+                <PhaseConnector />
+                <KOPhaseColumn
+                  title={`Semis — ${pts?.sf ?? 5} pts`}
+                  teams={payload.qf_winners}
+                  selected={payload.sf_winners}
+                  onToggle={(t) => toggleKO("sf_winners", t)}
+                />
+              </>
+            )}
+
+            {/* Finalistas */}
+            {payload.sf_winners.length > 0 && (
+              <>
+                <PhaseConnector />
+                <KOPhaseColumn
+                  title={`Final — ${pts?.final ?? 8} pts`}
+                  teams={payload.sf_winners}
+                  selected={payload.finalists}
+                  onToggle={(t) => toggleKO("finalists", t)}
+                />
+              </>
+            )}
+
+            {/* Campeão */}
+            {payload.finalists.length > 0 && (
+              <>
+                <PhaseConnector />
+                <div className="flex-shrink-0 flex flex-col gap-2 lg:min-w-[180px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-bold" style={{ color: "var(--color-gold)" }}>
+                      Campeão
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-badge"
+                      style={{ background: "var(--color-gold)", color: "#1D1D1F" }}>
+                      {pts?.champion ?? 25} pts
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {payload.finalists.map((t) => (
+                      <PodiumChip
+                        key={t}
+                        team={t}
+                        selected={payload.champion === t}
+                        label="Campeão"
+                        onClick={() => setChampion(t)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
+          {/* 3º lugar — faixa abaixo, sempre full-width */}
+          {payload.sf_winners.length > 0 && (
+            <div
+              className="mt-4 pt-4"
+              style={{ borderTop: "1px solid var(--border-subtle)" }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+                  3º lugar — {pts?.third_place ?? 8} pts
+                </span>
+              </div>
+              <TeamChips
+                teams={
+                  payload.sf_winners.filter((t) => !payload.finalists.includes(t)).length > 0
+                    ? payload.sf_winners.filter((t) => !payload.finalists.includes(t))
+                    : payload.sf_winners
+                }
+                selected={payload.third_place ? [payload.third_place] : []}
+                onToggle={setThirdPlace}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* 3º lugar */}
-      {payload.sf_winners.length > 0 && (
-        <Section title={`3º lugar — ${pts?.third_place ?? 8} pts`}>
-          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-            Quem vence o jogo do 3º lugar?
-          </p>
-          <TeamChips
-            teams={
-              payload.sf_winners.filter((t) => !payload.finalists.includes(t)).length > 0
-                ? payload.sf_winners.filter((t) => !payload.finalists.includes(t))
-                : payload.sf_winners
-            }
-            selected={payload.third_place ? [payload.third_place] : []}
-            onToggle={setThirdPlace}
-          />
-        </Section>
-      )}
-
-      {/* Botão salvar */}
+      {/* Botão salvar — sticky no rodapé da viewport: acompanha o usuário do
+          primeiro grupo até o campeão sem cortar o fluxo no meio da página */}
       {errorMsg && (
         <p className="text-[13px]" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
       )}
-      <button
-        onClick={handleSave}
-        disabled={status === "saving"}
-        className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity disabled:opacity-60"
-        style={{ background: "var(--color-accent)" }}
-      >
-        {status === "saving" ? "Salvando…" : status === "saved" ? "Salvo!" : "Salvar Bracket"}
-      </button>
+      <div className="sticky bottom-4 z-10">
+        <button
+          onClick={handleSave}
+          disabled={status === "saving"}
+          className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity disabled:opacity-60 shadow-lg"
+          style={{ background: "var(--color-accent)" }}
+        >
+          {status === "saving" ? "Salvando…" : status === "saved" ? "Salvo!" : "Salvar Bracket"}
+        </button>
+      </div>
 
       {/* Chaveamento completo — read-only, referência visual abaixo do formulário */}
       {matches.length > 0 && (
@@ -521,7 +581,7 @@ export default function BracketCard({
               aria-hidden="true"
             />
           </div>
-          <BracketBoard matches={matches} myBracket={myBracket} />
+          <BracketBoard matches={matches} myBracket={myBracket} showGroups={false} />
         </div>
       )}
     </div>
@@ -551,6 +611,88 @@ function BracketView({ payload }: { payload: BracketPayload }) {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── KOPhaseColumn — coluna de fase do mata-mata (desktop tree) ──
+
+function KOPhaseColumn({
+  title,
+  hint,
+  teams,
+  selected,
+  onToggle,
+  isFirst = false,
+}: {
+  title: string;
+  hint?: string;
+  teams: string[];
+  selected: string[];
+  onToggle: (team: string) => void;
+  isFirst?: boolean;
+}) {
+  return (
+    <div
+      className="flex-shrink-0 flex flex-col gap-2"
+      style={{ minWidth: isFirst ? "220px" : "180px" }}
+    >
+      <span
+        className="text-[12px] font-bold"
+        style={{ color: "var(--color-text-secondary)" }}
+      >
+        {title}
+      </span>
+      {hint && (
+        <p className="text-[11px] lg:hidden" style={{ color: "var(--color-text-secondary)" }}>
+          {hint}
+        </p>
+      )}
+      <div className="flex flex-col gap-1.5">
+        {teams.map((t) => {
+          const isSelected = selected.includes(t);
+          return (
+            <button
+              key={t}
+              onClick={() => onToggle(t)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-button text-[13px] font-semibold transition-all active:scale-95"
+              style={{
+                background: isSelected ? "var(--color-accent)" : "var(--color-bg-secondary)",
+                color: isSelected ? "#fff" : "var(--color-text-secondary)",
+                border: "1.5px solid transparent",
+                transitionTimingFunction: "var(--ease-spring)",
+                transitionDuration: "var(--duration-feedback)",
+                minHeight: "44px",
+              }}
+              aria-pressed={isSelected}
+            >
+              <span aria-hidden="true">{getFlag(t)}</span>
+              <span>{t}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Separador visual entre fases (seta) — visível apenas em desktop
+function PhaseConnector() {
+  return (
+    <div
+      className="hidden lg:flex items-center justify-center flex-shrink-0 px-2"
+      aria-hidden="true"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path
+          d="M3 8h10M9 4l4 4-4 4"
+          stroke="var(--color-text-secondary)"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity="0.4"
+        />
+      </svg>
     </div>
   );
 }

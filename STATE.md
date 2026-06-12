@@ -1,6 +1,17 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
+**Atualizado:** 2026-06-12 15:20 (v1.7 — 3ºs reativos + placar exato na árvore + pontos por fase)
+
+## v1.7 — 3ºs reativos, OFF-BY-ONE de fases, placar na árvore (2026-06-12, ~15h)
+
+Victor (print da árvore): "3ºs parece que não atualizam no mata-mata; incluir placar exato pra bônus; deixar explicada a pontuação esperada e ganha em cada fase/jogo".
+
+- **Bug dos 3ºs**: `thirdAlloc` era `useState` calculado uma vez no mount — marcar os 8 melhores 3ºs depois não preenchia os slots. Agora `computeThirdAlloc` (wc26-pairings.ts) é derivado por `useMemo`: matching bipartido máximo (Kuhn) + overrides manuais válidos. Provado no browser: 8 chips marcados → 8 slots preenchidos na hora, todos elegíveis por grupo
+- **BUG GRAVE descoberto no caminho — árvore deslocada 1 fase vs scoring**: a v1.6 gravava vencedores dos 16 avos em `r32_winners`, que o `scoreBracket` IGNORA (não pontua) — todos os picks da 1ª coluna valiam 0. Corrigido: 16 avos→`r16_winners`, oitavas→`qf_winners`, quartas→`sf_winners`, semis→`finalists`, vencedor da final→`champion` (semântica que o scoring sempre usou: cada array = times que CHEGAM à fase seguinte). `parseBracket` migra payloads v1.6 (se `r32_winners` não-vazio, desloca tudo) — bracket salvo do Victor se conserta sozinho ao abrir/salvar
+- **Placar exato na árvore**: cada card de jogo do mata-mata ganha "Cravar placar · +N pts" (N = exact_score × multiplicador da fase, do ruleset real) → expande 2 inputs + OK → POST /api/predictions no jogo REAL do banco. Mapeamento nº FIFA→jogo: `mapKnockoutByFifaNumber` (cronológico por fase, desempate por id; banco validado: 16/8/4/2/1/1). Gate: prediction_mode score + exact_score>0 + não-specials_only
+- **Pontuação explícita**: legenda "Cada acerto vale: oitavas +2 · ... · campeão +30 + bônus de placar" acima da árvore; hint por coluna ("acerto = +2 pts (oitavas)"); selo no pick: "+X" pendente, "✓ +X" verde quando o resultado real confirma (via deriveBracketOutcome on-read), "✗ 0" quando a fase real fecha sem o time; campeão/3º com selo próprio
+- **Higiene**: tap no vencedor remove o adversário do par (antes os dois podiam coexistir no set e pontuar dobrado); trocar grupo/3ºs poda picks downstream não-classificados (pruneKO); removidos mortos (toggleKO, KOPhaseColumn, PhaseConnector, PodiumChip); picker de 3º sem candidato explica o porquê
+- Prova: 139/139 testes (9 novos em wc26-pairings.test.ts), tsc limpo, build ok, validação no Chrome real (DOM: slots preenchidos, badge "+2", Coreia propagada pra oitavas, inputs de placar abrem). Nada salvo em nome do Victor — estado local apenas
 
 ## v1.6 — Árvore de chaveamento REAL (2026-06-12, ~12h)
 

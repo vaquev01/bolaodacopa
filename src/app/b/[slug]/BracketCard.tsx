@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Ruleset } from "@/lib/scoring";
+import { deriveBracketOutcome, type BracketMatchInput } from "@/lib/scoring";
+import { mapKnockoutByFifaNumber, stageOfFifaNumber } from "@/lib/scoring/wc26-pairings";
 import type { Match } from "@/lib/types";
 import { getFlag } from "@/lib/utils";
 import BracketBoard from "./BracketBoard";
-import KnockoutTreeEditor from "./KnockoutTreeEditor";
+import KnockoutTreeEditor, { type ScoreBonusConfig } from "./KnockoutTreeEditor";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -31,6 +33,10 @@ interface Props {
   locked: boolean;
   /** Todos os 104 jogos — alimenta o BracketBoard (chaveamento read-only). */
   matches?: Match[];
+  /** Meus palpites de placar (match_id → {home, away}) — bônus na árvore. */
+  scorePreds?: Record<string, { home: number; away: number }>;
+  /** Grava palpite de placar de um jogo do mata-mata (bônus). */
+  onSaveScore?: (matchId: string, home: number, away: number) => Promise<boolean>;
 }
 
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
@@ -51,7 +57,7 @@ function emptyPayload(): BracketPayload {
 
 function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
   if (!raw) return emptyPayload();
-  return {
+  const p: BracketPayload = {
     groups: (raw.groups as Record<string, string[]>) ?? {},
     third_qualifiers: (raw.third_qualifiers as string[]) ?? [],
     r32_winners: (raw.r32_winners as string[]) ?? [],
@@ -62,6 +68,21 @@ function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
     champion: (raw.champion as string) ?? "",
     third_place: (raw.third_place as string) ?? "",
   };
+  // Migração: a 1ª versão da árvore (v1.6) gravava uma fase deslocada —
+  // vencedores dos 16 avos iam pra r32_winners (que NÃO pontua). Se há
+  // r32_winners, desloca tudo pra semântica que o scoring usa.
+  if (p.r32_winners.length > 0) {
+    return {
+      ...p,
+      r32_winners: [],
+      r16_winners: p.r32_winners,
+      qf_winners: p.r16_winners,
+      sf_winners: p.qf_winners,
+      finalists: p.sf_winners,
+      champion: p.champion || p.finalists[0] || "",
+    };
+  }
+  return p;
 }
 
 function useCountdown(lockAt: string | null): { label: string; urgency: "ok" | "warning" | "danger" } {
@@ -112,6 +133,8 @@ export default function BracketCard({
   lockAt,
   locked,
   matches = [],
+  scorePreds,
+  onSaveScore,
 }: Props) {
   const [payload, setPayload] = useState<BracketPayload>(() => parseBracket(myBracket));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -153,7 +176,63 @@ export default function BracketCard({
     if (t && !qualifiedFromGroups.includes(t)) qualifiedFromGroups.push(t);
   }
 
+  // ── Estado real do torneio + bônus de placar exato ───────────
+
+  // Resultado real derivado dos jogos — liga os selos "✓ +X pts" na árvore
+  const realOutcome = useMemo(() => {
+    if (matches.length === 0) return null;
+    const inputs: BracketMatchInput[] = matches.map((m) => ({
+      id: m.id,
+      stage: m.stage as BracketMatchInput["stage"],
+      home_team: m.home_team,
+      away_team: m.away_team,
+      score_home_90: m.score_home_90,
+      score_away_90: m.score_away_90,
+      status: m.status,
+      group_code: m.group_label ?? undefined,
+    }));
+    return deriveBracketOutcome(inputs);
+  }, [matches]);
+
+  // Bônus de placar exato nos jogos reais do mata-mata (nº FIFA → jogo do banco)
+  const scoreBonusCfg: ScoreBonusConfig | null = useMemo(() => {
+    if (!onSaveScore || !scorePreds) return null;
+    if (ruleset.scoring.exact_score <= 0) return null;
+    const matchByFifa = mapKnockoutByFifaNumber(matches.filter((m) => m.stage !== "group"));
+    if (Object.keys(matchByFifa).length === 0) return null;
+    const mult = ruleset.stage_multipliers as unknown as Record<string, number>;
+    return {
+      matchByFifa,
+      preds: scorePreds,
+      bonusFor: (n: number) => {
+        const stage = stageOfFifaNumber(n);
+        if (!stage) return 0;
+        return Math.round(ruleset.scoring.exact_score * (mult[stage] ?? 1));
+      },
+      onSave: onSaveScore,
+    };
+  }, [matches, scorePreds, onSaveScore, ruleset]);
+
   // ── Handlers ─────────────────────────────────────────────────
+
+  /** Tira dos picks do mata-mata qualquer time que deixou de estar classificado. */
+  function pruneKO(p: BracketPayload): BracketPayload {
+    const qualified = new Set<string>();
+    for (const g of Object.values(p.groups)) {
+      for (const t of g.slice(0, 2)) if (t) qualified.add(t);
+    }
+    for (const t of p.third_qualifiers) if (t) qualified.add(t);
+    const keep = (arr: string[]) => arr.filter((t) => qualified.has(t));
+    return {
+      ...p,
+      r16_winners: keep(p.r16_winners),
+      qf_winners: keep(p.qf_winners),
+      sf_winners: keep(p.sf_winners),
+      finalists: keep(p.finalists),
+      champion: qualified.has(p.champion) ? p.champion : "",
+      third_place: qualified.has(p.third_place) ? p.third_place : "",
+    };
+  }
 
   function handleGroupChipTap(group: string, team: string) {
     setPayload((p) => {
@@ -174,11 +253,11 @@ export default function BracketCard({
       const validThirds = new Set(
         Object.values(groups).map((g) => g[2]).filter(Boolean)
       );
-      return {
+      return pruneKO({
         ...p,
         groups,
         third_qualifiers: p.third_qualifiers.filter((t) => validThirds.has(t)),
-      };
+      });
     });
     setStatus("idle");
   }
@@ -191,30 +270,8 @@ export default function BracketCard({
         : cur.length < 8
           ? [...cur, team]
           : cur; // máximo 8
-      return { ...p, third_qualifiers: next };
+      return pruneKO({ ...p, third_qualifiers: next });
     });
-    setStatus("idle");
-  }
-
-  function toggleKO(
-    phase: "r16_winners" | "qf_winners" | "sf_winners" | "finalists",
-    team: string
-  ) {
-    setPayload((p) => {
-      const cur = p[phase];
-      const next = cur.includes(team) ? cur.filter((t) => t !== team) : [...cur, team];
-      return { ...p, [phase]: next };
-    });
-    setStatus("idle");
-  }
-
-  function setChampion(team: string) {
-    setPayload((p) => ({ ...p, champion: p.champion === team ? "" : team }));
-    setStatus("idle");
-  }
-
-  function setThirdPlace(team: string) {
-    setPayload((p) => ({ ...p, third_place: p.third_place === team ? "" : team }));
     setStatus("idle");
   }
 
@@ -465,6 +522,18 @@ export default function BracketCard({
               </div>
             )}
           </div>
+          {/* Como pontua — explícito antes de palpitar */}
+          {pts && (
+            <p className="text-[12px] mb-3" style={{ color: "var(--color-text-secondary)" }}>
+              Toque no time que avança. Cada acerto vale: oitavas{" "}
+              <strong>+{pts.r16}</strong> · quartas <strong>+{pts.qf}</strong> · semis{" "}
+              <strong>+{pts.sf}</strong> · final <strong>+{pts.final}</strong> · campeão{" "}
+              <strong>+{pts.champion}</strong> · 3º lugar <strong>+{pts.third_place}</strong>
+              {scoreBonusCfg
+                ? " — e cravar o placar exato de um jogo dá bônus extra (valor mostrado em cada jogo)."
+                : "."}
+            </p>
+          )}
           <KnockoutTreeEditor
             payload={payload}
             groupTeams={groupTeams}
@@ -474,6 +543,9 @@ export default function BracketCard({
               setStatus("idle");
             }}
             locked={locked}
+            points={pts ?? null}
+            outcome={realOutcome}
+            scoreBonus={scoreBonusCfg}
           />
         </div>
       )}
@@ -540,88 +612,6 @@ function BracketView({ payload }: { payload: BracketPayload }) {
           </span>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ─── KOPhaseColumn — coluna de fase do mata-mata (desktop tree) ──
-
-function KOPhaseColumn({
-  title,
-  hint,
-  teams,
-  selected,
-  onToggle,
-  isFirst = false,
-}: {
-  title: string;
-  hint?: string;
-  teams: string[];
-  selected: string[];
-  onToggle: (team: string) => void;
-  isFirst?: boolean;
-}) {
-  return (
-    <div
-      className="flex-shrink-0 flex flex-col gap-2"
-      style={{ minWidth: isFirst ? "220px" : "180px" }}
-    >
-      <span
-        className="text-[12px] font-bold"
-        style={{ color: "var(--color-text-secondary)" }}
-      >
-        {title}
-      </span>
-      {hint && (
-        <p className="text-[11px] lg:hidden" style={{ color: "var(--color-text-secondary)" }}>
-          {hint}
-        </p>
-      )}
-      <div className="flex flex-col gap-1.5">
-        {teams.map((t) => {
-          const isSelected = selected.includes(t);
-          return (
-            <button
-              key={t}
-              onClick={() => onToggle(t)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-button text-[13px] font-semibold transition-all active:scale-95"
-              style={{
-                background: isSelected ? "var(--color-accent)" : "var(--color-bg-secondary)",
-                color: isSelected ? "#fff" : "var(--color-text-secondary)",
-                border: "1.5px solid transparent",
-                transitionTimingFunction: "var(--ease-spring)",
-                transitionDuration: "var(--duration-feedback)",
-                minHeight: "44px",
-              }}
-              aria-pressed={isSelected}
-            >
-              <span aria-hidden="true">{getFlag(t)}</span>
-              <span>{t}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// Separador visual entre fases (seta) — visível apenas em desktop
-function PhaseConnector() {
-  return (
-    <div
-      className="hidden lg:flex items-center justify-center flex-shrink-0 px-2"
-      aria-hidden="true"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M3 8h10M9 4l4 4-4 4"
-          stroke="var(--color-text-secondary)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity="0.4"
-        />
-      </svg>
     </div>
   );
 }
@@ -752,44 +742,3 @@ function TeamChips({
   );
 }
 
-// Chip do pódio (campeão destacado com gold)
-function PodiumChip({
-  team,
-  selected,
-  label,
-  onClick,
-}: {
-  team: string;
-  selected: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 px-4 py-3 rounded-button text-[15px] font-bold transition-all active:scale-95"
-      style={{
-        background: selected ? "var(--color-accent)" : "var(--color-bg-secondary)",
-        color: selected ? "#fff" : "var(--color-text-secondary)",
-        border: selected ? "2px solid var(--color-gold)" : "2px solid transparent",
-        boxShadow: selected ? "var(--shadow-gold)" : "none",
-        transitionTimingFunction: "var(--ease-spring)",
-        transitionDuration: "var(--duration-feedback)",
-        minHeight: "52px",
-      }}
-      aria-pressed={selected}
-      aria-label={`${label}: ${team}`}
-    >
-      <span className="text-xl" aria-hidden="true">{getFlag(team)}</span>
-      <span>{team}</span>
-      {selected && (
-        <span
-          className="ml-1 text-[11px] font-bold px-2 py-0.5 rounded-badge"
-          style={{ background: "var(--color-gold)", color: "#1D1D1F" }}
-        >
-          {label}
-        </span>
-      )}
-    </button>
-  );
-}

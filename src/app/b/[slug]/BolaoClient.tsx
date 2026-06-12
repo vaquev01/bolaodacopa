@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { Match, Prediction, PredictionScore, StandingRow } from "@/lib/types";
 import type { Ruleset } from "@/lib/scoring";
@@ -117,6 +117,43 @@ export default function BolaoClient({
   });
   const doneCount = openMatches.filter((m) => localPreds[m.id] !== undefined).length;
   const totalOpen = openMatches.length;
+
+  // ── Bônus de placar exato dentro da árvore do bracket ──────────
+  // Só em pools de placar (prediction_mode "score") com exact_score ativo e
+  // que tenham a aba de jogos (não specials_only).
+  const bracketScoreEnabled =
+    bracketEnabled &&
+    !isSpecialsOnly &&
+    ruleset.prediction_mode === "score" &&
+    ruleset.scoring.exact_score > 0;
+
+  const bracketScorePreds = useMemo(() => {
+    const out: Record<string, { home: number; away: number }> = {};
+    for (const [mid, p] of Object.entries(localPreds)) {
+      if (p && typeof (p as ScorePayload).home === "number" && typeof (p as ScorePayload).away === "number") {
+        out[mid] = { home: (p as ScorePayload).home, away: (p as ScorePayload).away };
+      }
+    }
+    return out;
+  }, [localPreds]);
+
+  const saveBracketScore = useCallback(
+    async (matchId: string, home: number, away: number): Promise<boolean> => {
+      try {
+        const r = await fetch("/api/predictions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pool_id: pool.id, match_id: matchId, payload: { home, away } }),
+        });
+        if (!r.ok) return false;
+        setLocalPreds((p) => ({ ...p, [matchId]: { home, away } }));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [pool.id]
+  );
 
   // Modo classificação: Bracket primeiro, Placares (bônus) por último
   const tabs: Tab[] = isClassification && bracketEnabled
@@ -285,6 +322,8 @@ export default function BolaoClient({
                 lockAt={bracketLockAt}
                 locked={bracketLocked}
                 matches={matches}
+                scorePreds={bracketScoreEnabled ? bracketScorePreds : undefined}
+                onSaveScore={bracketScoreEnabled ? saveBracketScore : undefined}
               />
             </div>
           </div>

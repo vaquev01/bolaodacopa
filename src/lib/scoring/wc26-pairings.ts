@@ -73,3 +73,130 @@ export function slotLabel(slot: R32Slot): string {
   if (slot.pos === 3) return `3º de ${slot.groups.join("/")}`;
   return `${slot.pos}º do ${slot.group}`;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Alocação dos melhores 3ºs nos slots dos 16 avos
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Slots de melhor 3º nos 16 avos: [matchNum, grupos elegíveis]. */
+export const THIRD_SLOTS: { match: number; groups: string[] }[] = R32_MATCHES.flatMap(
+  (m) =>
+    [m.home, m.away]
+      .filter((s): s is { pos: 3; groups: string[] } => s.pos === 3)
+      .map((s) => ({ match: m.match, groups: s.groups }))
+);
+
+/**
+ * Aloca os melhores 3ºs escolhidos nos slots de 3º dos 16 avos.
+ *
+ * - `manual` (matchNum → time) tem precedência, desde que o time siga
+ *   qualificado e seja elegível para o slot (grupo na lista do slot).
+ * - O restante é resolvido por matching bipartido máximo (algoritmo de Kuhn),
+ *   que encaixa o máximo de times possível — o guloso simples falha quando um
+ *   time elegível para vários slots ocupa cedo o único slot de outro.
+ *
+ * Determinístico: mesma entrada → mesma alocação.
+ */
+export function computeThirdAlloc(
+  qualifiers: string[],
+  teamGroup: Record<string, string>,
+  manual: Record<number, string> = {}
+): Record<number, string> {
+  const alloc: Record<number, string> = {};
+  const used = new Set<string>();
+
+  // 1) Overrides manuais válidos
+  for (const slot of THIRD_SLOTS) {
+    const team = manual[slot.match];
+    if (!team || used.has(team)) continue;
+    if (!qualifiers.includes(team)) continue;
+    const g = teamGroup[team];
+    if (!g || !slot.groups.includes(g)) continue;
+    alloc[slot.match] = team;
+    used.add(team);
+  }
+
+  // 2) Matching bipartido máximo nos slots/times restantes
+  const freeSlots = THIRD_SLOTS.filter((s) => !alloc[s.match]);
+  const freeTeams = qualifiers.filter((t) => !used.has(t));
+  const slotAssign: (string | null)[] = freeSlots.map(() => null);
+
+  function eligible(team: string, slotIdx: number): boolean {
+    const g = teamGroup[team];
+    return Boolean(g && freeSlots[slotIdx].groups.includes(g));
+  }
+
+  function tryAssign(team: string, visited: Set<number>): boolean {
+    for (let i = 0; i < freeSlots.length; i++) {
+      if (visited.has(i) || !eligible(team, i)) continue;
+      visited.add(i);
+      const current = slotAssign[i];
+      if (current === null || tryAssign(current, visited)) {
+        slotAssign[i] = team;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  for (const t of freeTeams) tryAssign(t, new Set());
+
+  freeSlots.forEach((s, i) => {
+    if (slotAssign[i]) alloc[s.match] = slotAssign[i]!;
+  });
+
+  return alloc;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Mapeamento nº FIFA → jogo do banco
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Primeiro nº FIFA de cada fase do mata-mata. */
+export const KO_STAGE_FIRST_MATCH: Record<string, number> = {
+  r32: 73,
+  r16: 89,
+  qf: 97,
+  sf: 101,
+  third: 103,
+  final: 104,
+};
+
+/** Fase de um nº FIFA do mata-mata (73–104). */
+export function stageOfFifaNumber(
+  n: number
+): "r32" | "r16" | "qf" | "sf" | "third" | "final" | null {
+  if (n >= 73 && n <= 88) return "r32";
+  if (n >= 89 && n <= 96) return "r16";
+  if (n >= 97 && n <= 100) return "qf";
+  if (n === 101 || n === 102) return "sf";
+  if (n === 103) return "third";
+  if (n === 104) return "final";
+  return null;
+}
+
+/**
+ * Mapeia jogos do banco para o nº oficial FIFA (73–104).
+ * Premissa: a FIFA numera cronologicamente dentro de cada fase (vale para o
+ * calendário oficial 2026). Empate de kickoff desempata por id (determinístico).
+ */
+export function mapKnockoutByFifaNumber<
+  M extends { id: string; stage: string; kickoff_at: string }
+>(matches: M[]): Record<number, M> {
+  const out: Record<number, M> = {};
+  for (const [stage, base] of Object.entries(KO_STAGE_FIRST_MATCH)) {
+    const ms = matches
+      .filter((m) => m.stage === stage)
+      .sort((a, b) =>
+        a.kickoff_at < b.kickoff_at
+          ? -1
+          : a.kickoff_at > b.kickoff_at
+            ? 1
+            : a.id.localeCompare(b.id)
+      );
+    ms.forEach((m, i) => {
+      out[base + i] = m;
+    });
+  }
+  return out;
+}

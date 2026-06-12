@@ -240,6 +240,7 @@ export default function BolaoClient({
                 myBracket={myBracket}
                 lockAt={bracketLockAt}
                 locked={bracketLocked}
+                matches={matches}
               />
             </div>
           </div>

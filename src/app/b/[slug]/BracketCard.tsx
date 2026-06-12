@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import type { Ruleset } from "@/lib/scoring";
+import type { Match } from "@/lib/types";
 import { getFlag } from "@/lib/utils";
+import BracketBoard from "./BracketBoard";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -26,6 +28,8 @@ interface Props {
   myBracket: Record<string, unknown> | null;
   lockAt: string | null;
   locked: boolean;
+  /** Todos os 104 jogos — alimenta o BracketBoard (chaveamento read-only). */
+  matches?: Match[];
 }
 
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
@@ -106,6 +110,7 @@ export default function BracketCard({
   myBracket,
   lockAt,
   locked,
+  matches = [],
 }: Props) {
   const [payload, setPayload] = useState<BracketPayload>(() => parseBracket(myBracket));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -229,6 +234,11 @@ export default function BracketCard({
             <BracketView payload={payload} />
           )}
         </div>
+
+        {/* Chaveamento completo — read-only */}
+        {matches.length > 0 && (
+          <BracketBoard matches={matches} myBracket={myBracket} />
+        )}
       </div>
     );
   }
@@ -444,6 +454,26 @@ export default function BracketCard({
       >
         {status === "saving" ? "Salvando…" : status === "saved" ? "Salvo!" : "Salvar Bracket"}
       </button>
+
+      {/* Chaveamento completo — read-only, referência visual abaixo do formulário */}
+      {matches.length > 0 && (
+        <div className="mt-2">
+          <div className="flex items-center gap-3 mb-4">
+            <h3
+              className="text-[15px] font-bold flex-shrink-0"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              Chaveamento da Copa
+            </h3>
+            <div
+              className="flex-1 h-px"
+              style={{ background: "var(--border-subtle)" }}
+              aria-hidden="true"
+            />
+          </div>
+          <BracketBoard matches={matches} myBracket={myBracket} />
+        </div>
+      )}
     </div>
   );
 }

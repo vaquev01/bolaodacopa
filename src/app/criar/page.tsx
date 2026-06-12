@@ -19,6 +19,9 @@ interface WizardState {
   predictionMode: "score" | "winner";
   winnerPickPoints: number;
   winnerExactBonus: number;
+  // "Só classificação": placar exato dos jogos como pontos extras
+  specialsExactEnabled: boolean;
+  specialsExactPoints: number;
   exactScore: number;
   winnerOnly: number;
   winnerAndDiff: number;
@@ -69,6 +72,8 @@ export default function CriarPage() {
     predictionMode: "score",
     winnerPickPoints: DEFAULT_RULESET.scoring.winner_pick,
     winnerExactBonus: DEFAULT_RULESET.scoring.winner_exact_bonus,
+    specialsExactEnabled: true,
+    specialsExactPoints: 10,
     exactScore: DEFAULT_RULESET.scoring.exact_score,
     winnerOnly: DEFAULT_RULESET.scoring.winner_only,
     winnerAndDiff: DEFAULT_RULESET.scoring.winner_and_diff,
@@ -210,19 +215,31 @@ export default function CriarPage() {
       // Exceção: "só classificação" com Copa em andamento usa escopo de jogos
       // futuros, que empurra o lock para depois de amanhã (lateSpecials).
       const preCopaAvailable = !effectivePreCopaLocked;
+      // "Só classificação" com placar extra: única camada que pontua nos
+      // jogos é o placar em cheio — todas as outras valem 0.
+      const specialsExtra = specialsOnly && state.specialsExactEnabled;
       const ruleset = {
         ...DEFAULT_RULESET,
-        prediction_mode: state.predictionMode,
-        scoring: {
-          ...DEFAULT_RULESET.scoring,
-          exact_score: state.exactScore,
-          winner_only: state.winnerOnly,
-          winner_and_diff: state.winnerAndDiff,
-          draw_only: state.drawOnly,
-          goals_one_team: state.goalsOneTeam,
-          winner_pick: state.winnerPickPoints,
-          winner_exact_bonus: state.winnerExactBonus,
-        },
+        prediction_mode: specialsOnly ? "score" : state.predictionMode,
+        scoring: specialsExtra
+          ? {
+              ...DEFAULT_RULESET.scoring,
+              exact_score: state.specialsExactPoints,
+              winner_only: 0,
+              winner_and_diff: 0,
+              draw_only: 0,
+              goals_one_team: 0,
+            }
+          : {
+              ...DEFAULT_RULESET.scoring,
+              exact_score: state.exactScore,
+              winner_only: state.winnerOnly,
+              winner_and_diff: state.winnerAndDiff,
+              draw_only: state.drawOnly,
+              goals_one_team: state.goalsOneTeam,
+              winner_pick: state.winnerPickPoints,
+              winner_exact_bonus: state.winnerExactBonus,
+            },
         deadline: {
           mode: "per_match",
           minutes_before: state.deadlineMinutes,
@@ -270,13 +287,16 @@ export default function CriarPage() {
             ? lateSpecials
               ? {
                   // Copa em andamento: escopo = jogos após o corte, só para
-                  // definir o lock dos palpites no servidor. A UI trata
-                  // variant === "specials_only" igual ao modo nativo.
+                  // definir o lock dos palpites pré-Copa no servidor.
+                  // "specials_plus" = classificação + placar em cheio extra
+                  // (tab de jogos visível); "specials_only" = só classificação.
                   type: "custom",
                   match_ids: lateLockMatches.map((m) => m.id),
-                  variant: "specials_only",
+                  variant: specialsExtra ? "specials_plus" : "specials_only",
                 }
-              : { type: "specials_only" }
+              : specialsExtra
+                ? { type: "specials_only", variant: "specials_plus" }
+                : { type: "specials_only" }
             : { type: "custom", match_ids: state.selectedMatches };
 
       const slug =
@@ -427,7 +447,17 @@ export default function CriarPage() {
                   return (
                   <button
                     key={opt.id}
-                    onClick={() => !disabled && update("scopeType", opt.id)}
+                    onClick={() => {
+                      if (disabled) return;
+                      update("scopeType", opt.id);
+                      // "Só classificação" gira em torno do chaveamento:
+                      // bracket vem pré-ligado (o dono pode desligar).
+                      // (não usar effectivePreCopaLocked aqui: ele só vira
+                      // false DEPOIS que scopeType muda para specials_only)
+                      if (opt.id === "specials_only" && (!preCopaLocked || lateLockAt !== null)) {
+                        update("bracketEnabled", true);
+                      }
+                    }}
                     disabled={disabled}
                     className="flex items-center gap-3 p-4 rounded-card text-left transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
                     style={{
@@ -564,6 +594,41 @@ export default function CriarPage() {
                   : `todo mundo preenche até ${effectivePreCopaLockLabel}. Depois disso, trava para sempre.`}
               </p>
             </div>
+
+            {/* Só classificação: placar exato como pontos extras */}
+            {state.scopeType === "specials_only" && (
+              <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Cravar placar vale pontos extras
+                    </p>
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      Além da classificação, cada um pode chutar o placar dos jogos. Só o
+                      placar em cheio pontua — errou, não ganha nada.
+                    </p>
+                  </div>
+                  <Toggle
+                    value={state.specialsExactEnabled}
+                    onChange={(v) => update("specialsExactEnabled", v)}
+                  />
+                </div>
+                {state.specialsExactEnabled && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                      Pontos por placar em cheio (recomendado: 10)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <StepperButton onClick={() => update("specialsExactPoints", Math.max(1, state.specialsExactPoints - 1))} label="−" />
+                      <span className="tabular-nums text-[17px] font-semibold w-8 text-center" style={{ color: "var(--color-text-primary)" }}>
+                        {state.specialsExactPoints}
+                      </span>
+                      <StepperButton onClick={() => update("specialsExactPoints", Math.min(99, state.specialsExactPoints + 1))} label="+" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Modo de palpite */}
             {state.scopeType !== "specials_only" && (
@@ -1019,6 +1084,12 @@ export default function CriarPage() {
                     ? `Campeão: ${state.bracketPointsChampion}pts · Oitavas: ${state.bracketPointsR16}pts`
                     : "Desligado"}
               />
+              {state.scopeType === "specials_only" && (
+                <ReviewRow
+                  label="Placar em cheio (extra)"
+                  value={state.specialsExactEnabled ? `${state.specialsExactPoints} pts` : "Desligado"}
+                />
+              )}
               {state.scopeType !== "specials_only" && (<>
               <ReviewRow
                 label="Palpite"

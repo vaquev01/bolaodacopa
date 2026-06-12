@@ -49,9 +49,16 @@ export default async function BolaoPage({ params }: Props) {
 
   const ruleset = parseRuleset(pool.ruleset);
   const scope = pool.scope as { type: string; match_ids?: string[]; variant?: string };
-  // variant === "specials_only": bolão de classificação criado com a Copa em
-  // andamento — o escopo custom existe só para definir o lock no servidor.
-  const isSpecialsOnly = scope.type === "specials_only" || scope.variant === "specials_only";
+  // Variants de "só classificação":
+  //  - "specials_only" (type ou variant): sem palpites de placar; em bolão
+  //    criado com a Copa em andamento o escopo custom só define o lock.
+  //  - "specials_plus": classificação + placar em cheio extra → a tab de
+  //    jogos aparece (todos os jogos), e o lock continua vindo do escopo.
+  const isClassification =
+    scope.type === "specials_only" ||
+    scope.variant === "specials_only" ||
+    scope.variant === "specials_plus";
+  const isSpecialsOnly = isClassification && scope.variant !== "specials_plus";
 
   // Buscar jogos do escopo (para specials_only ainda precisamos para derivar times/grupos e deadline)
   let matchQuery = supabase
@@ -59,7 +66,7 @@ export default async function BolaoPage({ params }: Props) {
     .select("id, stage, group_label, home_team, away_team, kickoff_at, status, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner")
     .order("kickoff_at", { ascending: true });
 
-  if (scope.type === "custom" && scope.match_ids?.length && !isSpecialsOnly) {
+  if (scope.type === "custom" && scope.match_ids?.length && !isClassification) {
     matchQuery = matchQuery.in("id", scope.match_ids);
   }
 
@@ -121,10 +128,10 @@ export default async function BolaoPage({ params }: Props) {
   const teams = Array.from(teamsSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   // Deadline dos especiais = kickoff do primeiro jogo do escopo.
-  // Em bolão de classificação criado durante a Copa (variant specials_only),
-  // o escopo real são os match_ids — o lock é o 1º jogo deles.
+  // Em bolão de classificação criado durante a Copa (variant specials_only/
+  // specials_plus), o escopo real são os match_ids — o lock é o 1º deles.
   const deadlineMatches =
-    scope.variant === "specials_only" && scope.match_ids?.length
+    isClassification && scope.type === "custom" && scope.match_ids?.length
       ? matchList.filter((m) => scope.match_ids!.includes(m.id))
       : matchList;
   const deadlineAt = deadlineMatches.length > 0

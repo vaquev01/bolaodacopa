@@ -2,6 +2,16 @@
 
 **Atualizado:** 2026-06-12 10:40 (v1.4 modo "só vencedor" + UX guiada one-page)
 
+## v1.5 — Classificação completa + chaveamento visual (2026-06-12)
+
+Victor: "definir 1º, 2º e melhores 3ºs (influem no chaveamento)", "chaveamento da Copa visível como o PDF", "placar exato como pontuação extra".
+
+- **Bracket pré-ligado no "Só classificação"** (1º/2º + 8 melhores 3ºs + fases já existiam no BracketCard v1.1)
+- **Placar extra**: toggle no wizard (default on, 10 pts) → variant `specials_plus` = scope custom (lock pós-amanhã) + ruleset só `exact_score` (demais camadas 0, prediction_mode score). Descoberta chave: `submit_prediction` valida deadline DO JOGO, não escopo → placar funciona em qualquer jogo futuro sem afetar lock do bracket
+- **BracketBoard** (agente cre-ux): read-only na tab Bracket — 12 grupos (palpite accent, confirmado verde, erro riscado), grid dos 8 melhores 3ºs, árvore mata-mata com scroll horizontal por fase, pódio campeão/vice. Props: BolaoClient passa matches ao BracketCard
+- **page.tsx**: `isClassification` (specials_only|specials_plus) — specials_plus mostra aba de jogos (todos), lock/deadline continua do escopo
+- Smoke e2e: pool `sistema-smoke-splus-fwbds` — bracket `{ok:true}` + placar extra aceito em jogo de hoje + página 200. 126/126 testes, build limpo
+
 ## v1.4.1 — "Só classificação" liberado com Copa em andamento (2026-06-12)
 
 Victor: "pode liberar o jogo" + "jogos que já ocorreram desconsiderados da pontuação (deixar ali)".

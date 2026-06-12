@@ -19,7 +19,9 @@ Plataforma onde qualquer pessoa cria e administra seu próprio bolão da Copa do
 - ✅ Smoke test end-to-end validado contra Supabase real: criar perfil → criar bolão → entrar → palpitar → lançar resultado → pontos calculados (exato=10, vencedor+saldo=5)
 - ✅ **Sync automático de placares** (`/api/sync-results` + LaunchAgent a cada 10 min): football-data.org → resultado oficial em todos os bolões, idempotente, reverte edição manual errada. Resultados da Copa real já fluindo (México 2×0, Coreia do Sul 2×1). Pontos de bracket calculados on-read (`src/lib/bracket-live.ts`) — sempre atuais
 - ✅ Servidor local resiliente: LaunchAgents `com.keli.bolao-server` (KeepAlive) + `com.keli.bolao-sync`
+- ✅ **Processo de design com prova visual** (v1.5.2): mudanças de UI passam por screenshot real (keli-browser) + crítica fresh-eyes (cre-critic) antes de entregar — métrica da rodada: altura da tab Bracket caiu de 5928px para 2964px
 - ⏳ Deploy Vercel — blocker: `vercel login` (Victor) + domínio definitivo; `vercel.json` com cron já pronto
+- ⏳ Polish futuro: linhas conectoras SVG entre fases do mata-mata (estilo chaveamento de jornal)
 
 ### Rodar local
 

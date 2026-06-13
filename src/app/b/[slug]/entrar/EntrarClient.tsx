@@ -114,6 +114,18 @@ export default function EntrarClient({
           </p>
         </div>
 
+        {/* O que é — para quem nunca usou */}
+        <div
+          className="rounded-card px-4 py-3"
+          style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
+        >
+          <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+            Aqui o grupo <strong style={{ color: "var(--color-text-primary)" }}>palpita nos jogos
+            da Copa 2026</strong> e disputa um ranking. Acertou, ganha pontos. É de graça, sem
+            cadastro e não envolve dinheiro.
+          </p>
+        </div>
+
         {/* Preview dos próximos jogos */}
         {previewMatches.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -186,7 +198,7 @@ export default function EntrarClient({
                 className="block text-[13px] font-medium mb-1.5"
                 style={{ color: "var(--color-text-secondary)" }}
               >
-                Qual é o seu nome?
+                Qual é o seu nome? <span style={{ opacity: 0.7 }}>(é assim que você aparece no ranking)</span>
               </label>
               <input
                 type="text"

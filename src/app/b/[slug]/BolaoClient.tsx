@@ -7,6 +7,7 @@ import type { Ruleset } from "@/lib/scoring";
 import { formatKickoff, deadlineLabel, deadlineUrgency, getFlag, stageLabel } from "@/lib/utils";
 import SpecialBetsCard from "./SpecialBetsCard";
 import BracketCard from "./BracketCard";
+import RulesSheet from "./RulesSheet";
 
 interface Pool {
   id: string;
@@ -92,6 +93,7 @@ export default function BolaoClient({
   // Modo classificação: tab default é bracket (se disponível), senão palpites
   const defaultTab: Tab = isClassification && bracketEnabled ? "bracket" : "palpites";
   const [tab, setTab] = useState<Tab>(defaultTab);
+  const [showRules, setShowRules] = useState(false);
 
   const hasSpecials = ruleset.special_bets.champion.enabled || ruleset.special_bets.qualifiers.enabled;
   // specials_plus: modo classificação com palpites de placar como bônus
@@ -174,6 +176,14 @@ export default function BolaoClient({
             {pool.name}
           </h1>
           <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowRules(true)}
+              className="px-3 py-2 rounded-button text-[13px] font-semibold"
+              style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}
+              aria-label="Ver as regras do bolão"
+            >
+              Regras
+            </button>
             <button
               onClick={() => router.push(`/b/${pool.slug}/convite`)}
               className="px-3 py-2 rounded-button text-[13px] font-semibold"
@@ -307,7 +317,12 @@ export default function BolaoClient({
           </div>
         )}
         {tab === "ranking" && (
-          <RankingTab ranking={ranking} currentUserId={currentUserId} bracketEnabled={bracketEnabled} />
+          <RankingTab
+            ranking={ranking}
+            currentUserId={currentUserId}
+            bracketEnabled={bracketEnabled}
+            onShowRules={() => setShowRules(true)}
+          />
         )}
         {tab === "bracket" && bracketEnabled && (
           <div className="px-4 py-3">
@@ -329,6 +344,16 @@ export default function BolaoClient({
           </div>
         )}
       </div>
+
+      {showRules && (
+        <RulesSheet
+          poolName={pool.name}
+          ruleset={ruleset}
+          bracketEnabled={bracketEnabled}
+          isClassification={isClassification}
+          onClose={() => setShowRules(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1202,10 +1227,12 @@ function RankingTab({
   ranking,
   currentUserId,
   bracketEnabled,
+  onShowRules,
 }: {
   ranking: StandingRow[];
   currentUserId: string;
   bracketEnabled?: boolean;
+  onShowRules?: () => void;
 }) {
   const myRow = ranking.find((r) => r.user_id === currentUserId);
   const myIndex = ranking.findIndex((r) => r.user_id === currentUserId);
@@ -1218,8 +1245,17 @@ function RankingTab({
           Nenhum ponto ainda
         </p>
         <p className="text-[15px] text-center" style={{ color: "var(--color-text-secondary)" }}>
-          O ranking aparece assim que os jogos terminarem.
+          O ranking aparece assim que os jogos terminarem. Enquanto isso, faça seus palpites!
         </p>
+        {onShowRules && (
+          <button
+            onClick={onShowRules}
+            className="text-[13px] font-semibold"
+            style={{ color: "var(--color-accent)" }}
+          >
+            Como os pontos são calculados?
+          </button>
+        )}
       </div>
     );
   }
@@ -1314,6 +1350,16 @@ function RankingTab({
             </div>
           );
         })}
+
+        {onShowRules && (
+          <button
+            onClick={onShowRules}
+            className="text-[13px] font-medium mt-2 py-2 self-center"
+            style={{ color: "var(--color-accent)" }}
+          >
+            Como os pontos são calculados?
+          </button>
+        )}
       </div>
     </div>
   );

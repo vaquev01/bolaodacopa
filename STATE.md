@@ -1,6 +1,19 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-13 10:00 (v1.8 — pente fino / QA: pênaltis, ranking, prediction_mode, tiebreakers)
+**Atualizado:** 2026-06-13 10:18 (v1.9 — didática/auto-explicação para quem recebe o link)
+
+## v1.9 — Didático e auto-explicável (2026-06-13, ~10h15)
+
+Victor: "revisa se o bolão está didático e auto-explicável pra quem recebe o link saber usar, entender as regras e acompanhar ao longo da Copa". Auditoria de onboarding (agente) identificou a lacuna #1: **as regras só existiam no wizard do criador** — quem entrava pelo link nunca via quanto vale cada acerto.
+
+- **NOVO `RulesSheet.tsx`** — painel "Como funciona" acessível por botão **Regras** no header (todas as abas), gerado do **ruleset REAL** do pool (nada hardcoded): O jogo · Como você palpita (adapta a score/winner) · **Quanto vale cada acerto** (tabela só com as camadas ativas, com descrição leiga: "Vencedor + saldo = acertou quem ganhou E por quantos gols") · Jogos que valem mais (multiplicadores ≠1 + exemplo "final 5×3=15") · Palpites da Copa (campeão/classificados/bracket, se ativos) · Prazo · Desempate · Como acompanhar. Fecha no ESC/backdrop. Validado no browser contra o ruleset real (placar exato +5, mult ×1.5/×2/×2.5/×3, bracket oitavas+2…campeão+30)
+- **Ranking**: atalho "Como os pontos são calculados?" (abre o painel) no rodapé e no estado vazio; estado vazio agora convida a palpitar
+- **Tela /entrar**: card "o que é" ("o grupo palpita nos jogos da Copa 2026 e disputa um ranking — de graça, sem cadastro, sem dinheiro") + label do nome explica "é assim que você aparece no ranking"
+- **Convite WhatsApp**: mensagem antes vaga ("Entrei no X, você entra? 👊") → didática: "🏆 Bora pro bolão da Copa 2026 'X'? Você palpita nos jogos e a gente disputa o ranking — de graça, sem cadastro e sem dinheiro. Leva 1 minuto: {link}"
+- Prova: tsc/build limpos, 143/143 testes, servidor reiniciado, painel renderizado e conferido por DOM no Chrome real
+- **Pendente de polish** (não-bloqueante): glossário inline no breakdown por jogo ("saldo"→tooltip); onboarding de 1ª vez (banner dismissível); indicador de scroll no sheet. Bloqueadores reais seguem: **deploy Vercel** (login do Victor) e **migration de hardening do sync**
+
+## v1.8 — Pente fino de QA + chaveamento validado (2026-06-13, ~10h)
 
 ## v1.8 — Pente fino de QA + chaveamento validado (2026-06-13, ~10h)
 

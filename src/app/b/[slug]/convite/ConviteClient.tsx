@@ -19,7 +19,9 @@ export default function ConviteClient({ pool }: { pool: Pool }) {
       : `https://bolao.app/b/${pool.slug}/entrar`;
 
   const whatsappText = encodeURIComponent(
-    `Entrei no "${pool.name}", você também entra? 👊 ${inviteUrl}`
+    `🏆 Bora pro bolão da Copa 2026 "${pool.name}"?\n\n` +
+      `Você palpita nos jogos e a gente disputa o ranking — de graça, sem cadastro e sem dinheiro. ` +
+      `Leva 1 minuto pra entrar:\n${inviteUrl}`
   );
   const whatsappUrl = `https://wa.me/?text=${whatsappText}`;
 

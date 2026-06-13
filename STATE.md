@@ -1,6 +1,34 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-13 10:18 (v1.9 — didática/auto-explicação para quem recebe o link)
+**Atualizado:** 2026-06-13 10:35 (v1.10 — pronto pra Railway + auditoria de timing/anti-roubo)
+
+## v1.10 — Deploy-ready (Railway) + auditoria anti-roubo (2026-06-13, ~10h30)
+
+Victor: "destravar e deixar tudo pronto pra subir no Railway" + "verificar timing/bloqueios de edição pra priorizar quem fez antes e evitar roubos".
+
+### Railway (pronto pra subir — falta só o Victor conectar o repo)
+- **Cron interno de sync** (`src/instrumentation.ts`): substitui os LaunchAgents do Mac. No boot do servidor long-running, liga `setInterval(runSync, 10min)` quando `ENABLE_SYNC_CRON=true`. **Testado local**: `ENABLE_SYNC_CRON=true PORT=3019 npm run start` → log `[sync-cron] ativo` + `Ready`. Mata a dependência do Mac ligado e de cron externo
+- `next.config.mjs`: `experimental.instrumentationHook: true` (Next 14.2)
+- `package.json`: `start` usa `${PORT:-3017}` (Railway injeta `PORT`)
+- `railway.json`: Nixpacks + healthcheck `/` + `numReplicas: 1` (cron não duplica) + restart on-failure
+- `DEPLOY.md`: passo-a-passo completo (criar projeto, 7 env vars com origem no Keychain, gerar domínio, checklist pós-deploy, como desligar os LaunchAgents locais). `.env.example` bloqueado pela regra inviolável → envs documentadas no DEPLOY.md
+- `vercel.json` mantido (ignorado pelo Railway; cron serverless pra quem preferir Vercel)
+
+### Auditoria de timing / anti-roubo (verificação)
+Camadas que EXISTEM e protegem (confirmadas no código/SQL + provas de sessões anteriores):
+- **Lock de palpite por jogo**: `submit_prediction` valida deadline server-side (kickoff − minutes_before) → jogo começado retorna `deadline_passed` (route trata). Jogo passado não pontua
+- **Lock dos palpites da Copa** (campeão/classificados/bracket): `_pool_first_kickoff(pool)` — fecham no 1º jogo do escopo (`submit_bracket` retorna `bracket_locked`)
+- **Sigilo anti-cópia**: RLS esconde palpites alheios até o kickoff (`bracket_predictions_read USING now() >= _pool_first_kickoff`)
+- **Anti-fraude do early-bird**: editar (`edit_count > 0`) zera o bônus — só premia quem cravou cedo e não mexeu mais (`specials.ts:earlyBirdBonus`)
+- **Resultado só pelo sistema**: após a migration de hardening, `set_match_result`/`save_scores` restritos ao perfil Keli Sync
+
+⚠️ **2 pendências que dependem do Victor (admin Supabase):**
+1. **Aplicar `20260612_sync_hardening.sql`** — hoje `set_match_result` aceita qualquer dono de pool. ANTES de abrir ao público é obrigatório, senão um membro esperto adultera placar
+2. **Versionar o schema inicial** (Task #2) — `submit_prediction` e a imutabilidade de `first_submitted_at` no edit estão num SQL não versionado; sem o dump não dá pra auditar linha a linha que editar não "reseta" o early-bird
+
+➡️ **"Priorizar quem fez antes"**: o early-bird é o mecanismo, mas exige `days_before` de antecedência (≥4d) — inócuo numa Copa com jogos diários. Opção melhor a decidir com o Victor: desempate por horário de submissão no ranking (quem travou os palpites antes fica na frente). Não implementado ainda — aguarda escolha da métrica
+
+## v1.9 — Didático e auto-explicável (2026-06-13, ~10h15)
 
 ## v1.9 — Didático e auto-explicável (2026-06-13, ~10h15)
 

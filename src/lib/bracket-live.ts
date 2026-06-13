@@ -32,7 +32,7 @@ export async function computeLiveBracketPoints(
   const [{ data: matches }, { data: brackets }] = await Promise.all([
     supabase
       .from("matches")
-      .select("id, stage, group_label, home_team, away_team, score_home_90, score_away_90, status")
+      .select("id, stage, group_label, home_team, away_team, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner, status")
       .order("kickoff_at", { ascending: true }),
     supabase.from("bracket_predictions").select("user_id, payload").eq("pool_id", poolId),
   ]);
@@ -46,6 +46,9 @@ export async function computeLiveBracketPoints(
     away_team: m.away_team as string,
     score_home_90: m.score_home_90 as number | null,
     score_away_90: m.score_away_90 as number | null,
+    score_home_ft: m.score_home_ft as number | null,
+    score_away_ft: m.score_away_ft as number | null,
+    penalty_winner: (m.penalty_winner as string | null) ?? null,
     status: m.status as BracketMatchInput["status"],
     group_code: (m.group_label as string | null) ?? undefined,
   }));

@@ -70,7 +70,9 @@ function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
   };
   // Migração: a 1ª versão da árvore (v1.6) gravava uma fase deslocada —
   // vencedores dos 16 avos iam pra r32_winners (que NÃO pontua). Se há
-  // r32_winners, desloca tudo pra semântica que o scoring usa.
+  // r32_winners, desloca tudo pra semântica que o scoring usa. Conservadora:
+  // mantém champion/third_place como o usuário marcou (não adivinha campeão a
+  // partir de finalists, o que corromperia o palpite).
   if (p.r32_winners.length > 0) {
     return {
       ...p,
@@ -79,7 +81,7 @@ function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
       qf_winners: p.r16_winners,
       sf_winners: p.qf_winners,
       finalists: p.sf_winners,
-      champion: p.champion || p.finalists[0] || "",
+      // champion e third_place preservados via spread acima
     };
   }
   return p;
@@ -188,6 +190,9 @@ export default function BracketCard({
       away_team: m.away_team,
       score_home_90: m.score_home_90,
       score_away_90: m.score_away_90,
+      score_home_ft: m.score_home_ft,
+      score_away_ft: m.score_away_ft,
+      penalty_winner: m.penalty_winner,
       status: m.status,
       group_code: m.group_label ?? undefined,
     }));
@@ -539,7 +544,12 @@ export default function BracketCard({
             groupTeams={groupTeams}
             teamGroup={teamGroupMap}
             onChange={(newPayload) => {
-              setPayload(newPayload);
+              // 3º lugar não pode ser um finalista (o user promoveu o time depois)
+              const clean =
+                newPayload.third_place && newPayload.finalists.includes(newPayload.third_place)
+                  ? { ...newPayload, third_place: "" }
+                  : newPayload;
+              setPayload(clean);
               setStatus("idle");
             }}
             locked={locked}

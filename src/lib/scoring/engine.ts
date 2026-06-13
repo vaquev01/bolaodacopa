@@ -67,7 +67,10 @@ export function scorePrediction(
   const actualAway =
     ruleset.score_basis === "final" ? match.score_away_ft : match.score_away_90;
 
-  if (ruleset.prediction_mode === "winner" || "winner" in prediction) {
+  // O modo do BOLÃO é a fonte de verdade — não a forma do payload. Um palpite
+  // de placar que por acaso carregue uma chave `winner` (payload migrado/sujo)
+  // num pool de placar deve continuar sendo pontuado como placar.
+  if (ruleset.prediction_mode === "winner") {
     return scoreWinnerPick(ruleset, prediction as WinnerPrediction, match, actualHome, actualAway);
   }
 

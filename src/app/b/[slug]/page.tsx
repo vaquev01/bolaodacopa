@@ -160,10 +160,28 @@ export default async function BolaoPage({ params }: Props) {
 
   // ── Ranking: prediction_scores + special_bet_scores + bracket_scores ────
 
-  // Pontos de palpites de placar por usuário
+  // Todos os membros ativos — TODO participante aparece no ranking, mesmo quem
+  // só preencheu o bracket (sem palpite de placar) ou ainda não pontuou.
+  const { data: membersRaw } = await supabase
+    .from("pool_members")
+    .select("user_id, profiles(name)")
+    .eq("pool_id", pool.id)
+    .eq("status", "active");
+
+  const memberNames = new Map<string, string>();
+  for (const row of membersRaw ?? []) {
+    const uid = row.user_id as string;
+    const profilesRaw = row.profiles as unknown;
+    const name = Array.isArray(profilesRaw)
+      ? ((profilesRaw[0] as { name: string } | undefined)?.name ?? "—")
+      : ((profilesRaw as { name: string } | null)?.name ?? "—");
+    memberNames.set(uid, name);
+  }
+
+  // Pontos de palpites de placar por usuário (com breakdown p/ desempate por exatos)
   const { data: rankingRaw } = await supabase
     .from("predictions")
-    .select("user_id, prediction_scores(points), profiles(name)")
+    .select("user_id, prediction_scores(points, breakdown), profiles(name)")
     .eq("pool_id", pool.id);
 
   // Pontos especiais por usuário neste pool
@@ -190,8 +208,28 @@ export default async function BolaoPage({ params }: Props) {
     }
   }
 
-  // Agregar prediction_scores por usuário
-  const rankMap = new Map<string, { name: string; gamePoints: number; bracketPoints: number }>();
+  // Agregar por usuário. Semeia com TODOS os membros ativos (zerados) para que
+  // ninguém suma do ranking — depois soma placar, especiais e bracket.
+  interface RankEntry {
+    name: string;
+    gamePoints: number;
+    bracketPoints: number;
+    exactCount: number; // desempate: nº de placares exatos
+  }
+  const rankMap = new Map<string, RankEntry>();
+  for (const [uid, name] of Array.from(memberNames.entries())) {
+    rankMap.set(uid, { name, gamePoints: 0, bracketPoints: 0, exactCount: 0 });
+  }
+
+  function ensure(uid: string, fallbackName: string): RankEntry {
+    let e = rankMap.get(uid);
+    if (!e) {
+      e = { name: fallbackName, gamePoints: 0, bracketPoints: 0, exactCount: 0 };
+      rankMap.set(uid, e);
+    }
+    return e;
+  }
+
   for (const row of rankingRaw ?? []) {
     const uid = row.user_id as string;
     const profilesRaw = row.profiles as unknown;
@@ -199,39 +237,52 @@ export default async function BolaoPage({ params }: Props) {
       ? ((profilesRaw[0] as { name: string } | undefined)?.name ?? "—")
       : ((profilesRaw as { name: string } | null)?.name ?? "—");
     const scoresRaw = row.prediction_scores as unknown;
-    const pts = Array.isArray(scoresRaw)
-      ? (scoresRaw as { points: number }[]).reduce((s, x) => s + (x.points ?? 0), 0)
-      : ((scoresRaw as { points: number } | null)?.points ?? 0);
+    const scoreRows = Array.isArray(scoresRaw)
+      ? (scoresRaw as { points: number; breakdown?: Record<string, number> }[])
+      : scoresRaw
+        ? [scoresRaw as { points: number; breakdown?: Record<string, number> }]
+        : [];
+    const pts = scoreRows.reduce((s, x) => s + (x.points ?? 0), 0);
+    const exacts = scoreRows.reduce((s, x) => s + (x.breakdown?.exact_score ? 1 : 0), 0);
 
-    const existing = rankMap.get(uid);
-    rankMap.set(uid, { name, gamePoints: (existing?.gamePoints ?? 0) + pts, bracketPoints: existing?.bracketPoints ?? 0 });
+    const e = ensure(uid, name);
+    if (e.name === "—") e.name = name;
+    e.gamePoints += pts;
+    e.exactCount += exacts;
   }
 
-  // Adicionar pontos especiais ao rankMap
+  // Adicionar pontos especiais
   for (const [uid, specialPts] of Array.from(specialPtsByUser.entries())) {
-    const existing = rankMap.get(uid);
-    if (existing) {
-      rankMap.set(uid, { ...existing, gamePoints: existing.gamePoints + specialPts });
-    }
+    ensure(uid, "—").gamePoints += specialPts;
   }
 
-  // Adicionar pontos de bracket ao rankMap
+  // Adicionar pontos de bracket
   for (const [uid, bPts] of Array.from(bracketPtsByUser.entries())) {
-    const existing = rankMap.get(uid);
-    if (existing) {
-      rankMap.set(uid, { ...existing, bracketPoints: bPts });
-    }
+    ensure(uid, "—").bracketPoints = bPts;
   }
 
+  // Garantir o nome do usuário atual a partir da sessão (RLS de profiles pode
+  // não expor o nome via join pool_members; a sessão sempre tem o nome).
+  const me = rankMap.get(session.userId);
+  if (me && (me.name === "—" || !me.name)) me.name = session.name;
+
+  // Ordenação DETERMINÍSTICA: pontos → mais placares exatos → nome (estável).
+  // (Cadeia completa de tiebreakers configuráveis fica para computeStandings.)
   const ranking = Array.from(rankMap.entries())
-    .map(([user_id, { name, gamePoints, bracketPoints }]) => ({
+    .map(([user_id, { name, gamePoints, bracketPoints, exactCount }]) => ({
       user_id,
       name,
       points: gamePoints + bracketPoints,
       game_points: gamePoints,
       bracket_points: bracketPoints,
+      exact_count: exactCount,
     }))
-    .sort((a, b) => b.points - a.points)
+    .sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.exact_count - a.exact_count ||
+        a.name.localeCompare(b.name, "pt-BR")
+    )
     .map((r, i) => ({ ...r, position: i + 1 }));
 
   // ── Bracket do usuário atual (se feature habilitada) ─────────────────────

@@ -86,9 +86,17 @@ describe("modo só vencedor (winner pick)", () => {
     expect(r.points).toBe(10); // exact_score default
   });
 
-  it("payload winner em pool modo score também pontua como winner (defensivo)", () => {
+  it("pool modo score: payload de placar com chave winner espúria pontua como PLACAR", () => {
+    // payload sujo/migrado {home, away, winner} num pool de placar — o modo do
+    // bolão manda: deve pontuar como placar (exato=10), não como winner pick.
     const scoreRuleset = parseRuleset({});
-    const r = scorePrediction(scoreRuleset, { winner: "home" }, match(2, 0));
-    expect(r.breakdown.winner_pick).toBeDefined();
+    const r = scorePrediction(
+      scoreRuleset,
+      { winner: "home", home: 2, away: 0 } as never,
+      match(2, 0)
+    );
+    expect(r.points).toBe(10);
+    expect(r.breakdown.exact_score).toBe(10);
+    expect(r.breakdown.winner_pick).toBeUndefined();
   });
 });

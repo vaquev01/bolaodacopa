@@ -95,9 +95,33 @@ export interface BracketMatchInput {
   away_team: string;
   score_home_90: number | null;
   score_away_90: number | null;
+  /** Placar após prorrogação (full time, sem pênaltis). Decide quem avança no KO. */
+  score_home_ft?: number | null;
+  score_away_ft?: number | null;
+  /** Nome do time vencedor nos pênaltis (quando houve disputa). */
+  penalty_winner?: string | null;
   status: MatchStatus;
   /** Só para matches de grupo — código do grupo (A–L). */
   group_code?: string;
+}
+
+/**
+ * Quem AVANÇA num confronto de mata-mata. Ordem de decisão:
+ *   1. pênaltis (penalty_winner) — empate em 90+prorrogação
+ *   2. placar após prorrogação (score_ft) — vence quem fez mais gols somando o ET
+ *   3. placar de 90min — fallback quando não há ft (jogo decidido no tempo normal)
+ * Retorna null se o confronto está empatado sem critério de desempate (dado
+ * incompleto) — nesse caso a fase fica "não resolvida" e não pontua, em vez de
+ * silenciosamente perder o vencedor.
+ */
+function knockoutWinner(m: BracketMatchInput): string | null {
+  if (m.penalty_winner) return m.penalty_winner;
+  const h = m.score_home_ft ?? m.score_home_90;
+  const a = m.score_away_ft ?? m.score_away_90;
+  if (h == null || a == null) return null;
+  if (h > a) return m.home_team;
+  if (a > h) return m.away_team;
+  return null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -205,16 +229,13 @@ export function deriveBracketOutcome(
 
   // ── Fases mata-mata ───────────────────────────────────────────────────────
 
-  // Extrai vencedores de uma fase
+  // Extrai vencedores de uma fase (resolve prorrogação e pênaltis)
   function extractWinners(stage: Stage): string[] {
     const winners: string[] = [];
     const stageMatches = finished.filter((m) => m.stage === stage);
     for (const m of stageMatches) {
-      const h = m.score_home_90!;
-      const a = m.score_away_90!;
-      if (h > a) winners.push(m.home_team);
-      else if (a > h) winners.push(m.away_team);
-      // Empate no tempo normal: sem vencedor claro (não deveria ocorrer no KO real)
+      const w = knockoutWinner(m);
+      if (w) winners.push(w);
     }
     return winners;
   }
@@ -262,33 +283,25 @@ export function deriveBracketOutcome(
   }
   outcome.sf_teams = sfParticipants;
 
-  // Final
+  // Final (resolve prorrogação e pênaltis)
   const finalMatches = finished.filter((m) => m.stage === "final");
   for (const m of finalMatches) {
-    const h = m.score_home_90!;
-    const a = m.score_away_90!;
     const participants = [m.home_team, m.away_team];
     outcome.finalists = [...new Set([...outcome.finalists, ...participants])];
-    if (h > a) {
-      outcome.champion = m.home_team;
-      outcome.runner_up = m.away_team;
-    } else if (a > h) {
-      outcome.champion = m.away_team;
-      outcome.runner_up = m.home_team;
+    const champ = knockoutWinner(m);
+    if (champ) {
+      outcome.champion = champ;
+      outcome.runner_up = champ === m.home_team ? m.away_team : m.home_team;
     }
   }
 
-  // 3º lugar
+  // 3º lugar (resolve prorrogação e pênaltis)
   const thirdMatches = finished.filter((m) => m.stage === "third");
   for (const m of thirdMatches) {
-    const h = m.score_home_90!;
-    const a = m.score_away_90!;
-    if (h > a) {
-      outcome.third_place = m.home_team;
-      outcome.fourth_place = m.away_team;
-    } else if (a > h) {
-      outcome.third_place = m.away_team;
-      outcome.fourth_place = m.home_team;
+    const third = knockoutWinner(m);
+    if (third) {
+      outcome.third_place = third;
+      outcome.fourth_place = third === m.home_team ? m.away_team : m.home_team;
     }
   }
 

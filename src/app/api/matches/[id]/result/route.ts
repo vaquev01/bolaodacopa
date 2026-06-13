@@ -205,7 +205,7 @@ async function recalcBracketScores(
     // Buscar todos os matches para derivar o outcome atual
     const { data: allMatches, error: matchesError } = await supabase
       .from("matches")
-      .select("id, stage, group_label, home_team, away_team, score_home_90, score_away_90, status")
+      .select("id, stage, group_label, home_team, away_team, score_home_90, score_away_90, score_home_ft, score_away_ft, penalty_winner, status")
       .order("kickoff_at", { ascending: true });
 
     if (matchesError || !allMatches) {
@@ -221,6 +221,9 @@ async function recalcBracketScores(
       away_team: m.away_team as string,
       score_home_90: m.score_home_90 as number | null,
       score_away_90: m.score_away_90 as number | null,
+      score_home_ft: m.score_home_ft as number | null,
+      score_away_ft: m.score_away_ft as number | null,
+      penalty_winner: (m.penalty_winner as string | null) ?? null,
       status: m.status as BracketMatchInput["status"],
       group_code: (m.group_label as string | null) ?? undefined,
     }));

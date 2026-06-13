@@ -125,6 +125,85 @@ describe("deriveBracketOutcome — grupos", () => {
     expect(outcome.qualified).toContain("ARG");
   });
 
+  it("decide vencedor do KO por PÊNALTIS quando empatado em 90/prorrogação", () => {
+    // Final 1×1 em 90min, decidida nos pênaltis pra FRA
+    const matches: MatchInput[] = [
+      {
+        id: "final",
+        stage: "final" as const,
+        home_team: "BRA",
+        away_team: "FRA",
+        score_home_90: 1,
+        score_away_90: 1,
+        score_home_ft: 1,
+        score_away_ft: 1,
+        penalty_winner: "FRA",
+        status: "finished" as const,
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    expect(outcome.champion).toBe("FRA");
+    expect(outcome.runner_up).toBe("BRA");
+  });
+
+  it("decide vencedor do KO pela PRORROGAÇÃO (score_ft) quando 90min empatou", () => {
+    // Final: empate 1×1 em 90, ALE faz 2×1 na prorrogação (sem pênaltis)
+    const matches: MatchInput[] = [
+      {
+        id: "final",
+        stage: "final" as const,
+        home_team: "ALE",
+        away_team: "ESP",
+        score_home_90: 1,
+        score_away_90: 1,
+        score_home_ft: 2,
+        score_away_ft: 1,
+        status: "finished" as const,
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    // ALE venceu na prorrogação → campeão (score_ft, não score_90)
+    expect(outcome.champion).toBe("ALE");
+    expect(outcome.runner_up).toBe("ESP");
+  });
+
+  it("3º lugar decidido nos pênaltis também é resolvido", () => {
+    const matches: MatchInput[] = [
+      {
+        id: "third",
+        stage: "third" as const,
+        home_team: "POR",
+        away_team: "ITA",
+        score_home_90: 0,
+        score_away_90: 0,
+        score_home_ft: 0,
+        score_away_ft: 0,
+        penalty_winner: "ITA",
+        status: "finished" as const,
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    expect(outcome.third_place).toBe("ITA");
+    expect(outcome.fourth_place).toBe("POR");
+  });
+
+  it("empate sem pênaltis nem prorrogação = fase não resolvida (não inventa vencedor)", () => {
+    const matches: MatchInput[] = [
+      {
+        id: "final",
+        stage: "final" as const,
+        home_team: "BRA",
+        away_team: "FRA",
+        score_home_90: 1,
+        score_away_90: 1,
+        status: "finished" as const,
+      },
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    expect(outcome.champion).toBeNull();
+    expect(outcome.runner_up).toBeNull();
+  });
+
   it("deriveBracketOutcome retorna grupos vazios para matches que não têm status=finished", () => {
     const matches: MatchInput[] = [
       { id: "1", stage: "group" as const, home_team: "BRA", away_team: "MEX",

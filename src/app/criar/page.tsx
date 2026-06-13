@@ -303,7 +303,7 @@ export default function CriarPage() {
             : { type: "custom", match_ids: state.selectedMatches };
 
       const slug =
-        slugify(state.poolName) + "-" + Math.random().toString(36).slice(2, 7);
+        slugify(state.poolName) + "-" + Math.random().toString(36).slice(2, 10);
 
       const r = await fetch("/api/pools", {
         method: "POST",

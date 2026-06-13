@@ -1,6 +1,22 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-12 15:20 (v1.7 — 3ºs reativos + placar exato na árvore + pontos por fase)
+**Atualizado:** 2026-06-13 10:00 (v1.8 — pente fino / QA: pênaltis, ranking, prediction_mode, tiebreakers)
+
+## v1.8 — Pente fino de QA + chaveamento validado (2026-06-13, ~10h)
+
+Victor: "passa um pente fino como se fosse usuário; verifica se o chaveamento está correto; o que falta pra 10/10?". Auditoria multi-agente (Explore) + validação do bracket contra a fonte oficial + correções.
+
+- **✅ CHAVEAMENTO FIFA 100% CORRETO**: conferido `wc26-pairings.ts` contra a Wikipedia oficial (Annex C FIFA) — os 16 confrontos dos 16-avos (73–88), oitavas (89–96), quartas (97–100), semis (101–102), 3º lugar (103) e final (104) batem exatamente. Zero cruzamento errado.
+- **BUG CRÍTICO — pênaltis/prorrogação no mata-mata**: `deriveBracketOutcome` decidia o vencedor de KO só por `score_home_90` → todo jogo decidido na prorrogação ou pênaltis (empate em 90min) zerava champion/vice/3º/4º de TODOS os participantes silenciosamente. Quando o mata-mata começar (28/jun) isso quebraria a pontuação. Fix: `BracketMatchInput` ganhou `score_home_ft/score_away_ft/penalty_winner` + helper `knockoutWinner()` (pênaltis → prorrogação → 90min). Propagado em `bracket-live.ts`, `BracketCard` realOutcome e `matches/[id]/result`. 4 testes novos
+- **BUG CRÍTICO — ranking sumia com quem só fez bracket**: `rankMap` só era semeado por quem tinha `prediction_scores`; quem preencheu só o bracket (modo classificação!) não aparecia. Fix: semear com TODOS os membros ativos (`pool_members`), `ensure()` cria entry para qualquer fonte de pontos, e `session.name` garante o nome do usuário atual (RLS de profiles não expõe nome via join pool_members)
+- **BUG ALTO — prediction_mode burlado**: `engine.ts` usava `"winner" in prediction` → um payload de placar com chave `winner` espúria pontuava como winner-pick (3) em vez de placar (10). Agora o modo do BOLÃO é a fonte única
+- **BUG ALTO — ranking não-determinístico**: ordenava só por pontos, empates em ordem de array. Agora desempata por placares exatos → nome (estável). Cadeia completa de tiebreakers (`computeStandings`) fica para evolução
+- **BUG MÉDIO — 3º lugar = finalista**: guard no `onChange` do bracket remove `third_place` se o time foi promovido a finalista. Migração v1.6→v1.7 tornada conservadora (não adivinha campeão de `finalists[0]`)
+- **BUG BAIXO — slug**: entropia 5→8 chars (criar + api/pools)
+- Prova: 143/143 testes (+4 de KO), tsc/build limpos, servidor reiniciado, página 200, ranking renderiza com participante presente. Chaveamento validado via WebFetch da fonte oficial
+- **Gaps de UX pendentes p/ 10/10** (achados no pente fino do wizard, são copy/feature, não bugs): botão "Continuar" desabilitado sem feedback; falta tabela de pontuação concreta na escolha de modo; "bônus opcional" não quantificado no card; "amanhã à noite" hardcoded no card de classificação. Maior: **deploy Vercel** (login do Victor) e **migration de hardening do sync** (pendente, precisa admin/MCP Supabase)
+
+## v1.7 — 3ºs reativos, OFF-BY-ONE de fases, placar na árvore (2026-06-12, ~15h)
 
 ## v1.7 — 3ºs reativos, OFF-BY-ONE de fases, placar na árvore (2026-06-12, ~15h)
 

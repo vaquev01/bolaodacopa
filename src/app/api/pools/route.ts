@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         .replace(/^-|-$/g, "")
         .slice(0, 32) +
         "-" +
-        Math.random().toString(36).slice(2, 7);
+        Math.random().toString(36).slice(2, 10);
 
     const finalRuleset = ruleset ?? DEFAULT_RULESET;
     const finalScope = scope ?? { type: "full" };

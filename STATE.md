@@ -1,6 +1,13 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 16:40 (v1.14 — GitOps de schema fechado de ponta a ponta + auto-deploy on push)
+**Atualizado:** 2026-06-14 16:50 (v1.14 — GitOps fechado + domínio limpo bolao-da-copa)
+
+## 🌐 Domínio definitivo: bolao-da-copa.up.railway.app (2026-06-14 16:48)
+
+Victor escolheu "subdomínio Railway limpo" (grátis, sem comprar domínio). Cookies de login ficam presos ao domínio → definido ANTES de convidar pra ninguém ser deslogado depois.
+- `serviceDomainUpdate` renomeou `web-production-7e21b` → `bolao-da-copa.up.railway.app` (responde 200; antigo agora 404).
+- Hardcode `https://bolao.app` (domínio que não era nosso) eliminado: `metadataBase` (layout.tsx) e fallback do convite (ConviteClient) agora usam `NEXT_PUBLIC_SITE_URL`. Sem isso o preview OG do WhatsApp — principal asset de aquisição — viria SEM imagem. Var setada no Railway via motor. 143/143 testes, tsc limpo.
+
 
 ## ✅ GitOps de schema PROVADO end-to-end (2026-06-14 16:38)
 

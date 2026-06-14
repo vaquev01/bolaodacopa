@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Ruleset } from "@/lib/scoring";
+import { formatPrize } from "@/lib/scoring";
 
 interface Pool {
   id: string;
@@ -42,6 +43,15 @@ function rulesetLines(ruleset: Ruleset): string[] {
   lines.push(
     `⏰ Dá pra palpitar e editar até 15 min antes de cada jogo (os palpites de campeão/classificação fecham no 1º jogo da Copa).`
   );
+
+  if (ruleset.prize?.enabled && ruleset.prize.buy_in > 0) {
+    const splits = ruleset.prize.splits ?? [60, 25, 15];
+    const splitsStr = splits.map((s, i) => `${i + 1}º ${s}%`).join(", ");
+    lines.push(
+      `💰 Vale prêmio: entrada ${formatPrize(ruleset.prize.buy_in)}/pessoa — ${splitsStr} (o pote cresce com a galera)`
+    );
+  }
+
   return lines;
 }
 

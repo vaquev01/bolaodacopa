@@ -112,6 +112,21 @@ const ExtraMarketSchema = z.object({
   points: z.number(),
 });
 
+/**
+ * Premiação INFORMATIVA. O site nunca processa pagamentos — só calcula e exibe
+ * quanto cada colocado leva. O grupo acerta o dinheiro por fora (Pix etc).
+ *  - buy_in: valor de entrada por participante
+ *  - splits: % do pote por colocação, do 1º ao último premiado (deve somar 100)
+ * Default enabled=false → pools existentes não mostram premiação (retrocompatível).
+ */
+const PrizeSchema = z.object({
+  enabled: z.boolean().default(false),
+  currency: z.string().default("BRL"),
+  buy_in: z.number().min(0).default(0),
+  splits: z.array(z.number().min(0)).default([60, 25, 15]),
+  note: z.string().optional(),
+});
+
 const TiebreakerSchema = z.enum([
   "exact_scores",
   "winners",
@@ -141,6 +156,7 @@ export const RulesetSchema = z.object({
   early_bird: EarlyBirdSchema.default({}),
   advance_predictions: AdvancePredictionsSchema.default({}),
   extra_markets: z.array(ExtraMarketSchema).default([]),
+  prize: PrizeSchema.default({}),
   tiebreakers: z.array(TiebreakerSchema).default([
     "exact_scores",
     "winners",

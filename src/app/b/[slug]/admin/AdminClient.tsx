@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Match } from "@/lib/types";
+import type { Ruleset } from "@/lib/scoring";
+import { computePrizePool, formatPrize, splitsSum } from "@/lib/scoring";
 import { formatKickoff, getFlag, stageLabel } from "@/lib/utils";
 
 interface Pool {
@@ -49,7 +51,17 @@ function groupByDate(matches: Match[]): { dateLabel: string; matches: Match[] }[
   return Array.from(map.entries()).map(([dateLabel, matches]) => ({ dateLabel, matches }));
 }
 
-export default function AdminClient({ pool, matches }: { pool: Pool; matches: Match[] }) {
+export default function AdminClient({
+  pool,
+  matches,
+  ruleset,
+  memberCount = 0,
+}: {
+  pool: Pool;
+  matches: Match[];
+  ruleset: Ruleset;
+  memberCount?: number;
+}) {
   const router = useRouter();
   const [forms, setForms] = useState<Record<string, ResultForm>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -180,6 +192,9 @@ export default function AdminClient({ pool, matches }: { pool: Pool; matches: Ma
             Use esta tela apenas para corrigir algum placar que estiver errado.
           </p>
         </div>
+
+        {/* Seção de premiação */}
+        <AdminPrizeSection poolId={pool.id} ruleset={ruleset} memberCount={memberCount} />
 
         {/* Empty state */}
         {matches.length === 0 && (
@@ -589,6 +604,205 @@ export default function AdminClient({ pool, matches }: { pool: Pool; matches: Ma
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Admin Prize Section ─── */
+
+function AdminPrizeSection({
+  poolId,
+  ruleset,
+  memberCount,
+}: {
+  poolId: string;
+  ruleset: Ruleset;
+  memberCount: number;
+}) {
+  const router = useRouter();
+  const prize = ruleset.prize;
+
+  const [enabled, setEnabled] = useState(prize.enabled);
+  const [buyIn, setBuyIn] = useState(prize.buy_in > 0 ? prize.buy_in : 100);
+  const [split1, setSplit1] = useState(prize.splits[0] ?? 60);
+  const [split2, setSplit2] = useState(prize.splits[1] ?? 25);
+  const [split3, setSplit3] = useState(prize.splits[2] ?? 15);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const sum = splitsSum([split1, split2, split3]);
+  const preview = enabled && sum === 100
+    ? computePrizePool({ enabled: true, currency: "BRL", buy_in: buyIn, splits: [split1, split2, split3] }, memberCount)
+    : null;
+
+  async function handleSave() {
+    if (enabled && sum !== 100) {
+      setErr("A divisão precisa somar 100%.");
+      return;
+    }
+    setErr(null);
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/pools/${poolId}/ruleset`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prize: {
+            enabled,
+            currency: "BRL",
+            buy_in: enabled ? buyIn : 0,
+            splits: [split1, split2, split3],
+          },
+        }),
+      });
+      if (r.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+        router.refresh();
+      } else {
+        const d = await r.json();
+        setErr(d.message ?? "Erro ao salvar. Tente novamente.");
+      }
+    } catch {
+      setErr("Sem conexão. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const PLACE_EMOJI = ["🥇", "🥈", "🥉"];
+
+  return (
+    <div
+      className="rounded-card p-4 flex flex-col gap-3"
+      style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
+    >
+      {/* Toggle */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+            Premiação em dinheiro
+          </p>
+          <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            Informativa — o site só calcula; o grupo acerta por fora.
+          </p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => { setEnabled((v) => !v); setSaved(false); }}
+          className="w-12 h-7 rounded-full relative transition-colors flex-shrink-0"
+          style={{ background: enabled ? "var(--color-accent)" : "var(--color-bg-secondary)" }}
+        >
+          <span
+            className="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform"
+            style={{
+              transform: enabled ? "translateX(22px)" : "translateX(2px)",
+              transitionTimingFunction: "var(--ease-spring)",
+            }}
+          />
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
+          {/* Entrada */}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+              Entrada por pessoa (R$)
+            </p>
+            <input
+              type="number"
+              min="1"
+              max="99999"
+              value={buyIn}
+              onChange={(e) => { setBuyIn(Math.max(1, Number(e.target.value) || 1)); setSaved(false); }}
+              className="w-24 px-3 py-2 rounded-button border text-[15px] text-right outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent] tabular-nums"
+              style={{
+                background: "var(--color-bg-secondary)",
+                borderColor: "var(--border-subtle)",
+                color: "var(--color-text-primary)",
+              }}
+            />
+          </div>
+
+          {/* Splits */}
+          {(
+            [
+              { label: "1º lugar", emoji: PLACE_EMOJI[0], value: split1, set: setSplit1 },
+              { label: "2º lugar", emoji: PLACE_EMOJI[1], value: split2, set: setSplit2 },
+              { label: "3º lugar", emoji: PLACE_EMOJI[2], value: split3, set: setSplit3 },
+            ] as const
+          ).map(({ label, emoji, value, set }) => (
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                {emoji} {label}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { set(Math.max(0, value - 1)); setSaved(false); }}
+                  className="w-9 h-9 rounded-button flex items-center justify-center font-semibold text-lg transition-opacity active:opacity-60"
+                  style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-primary)" }}
+                  aria-label="Diminuir"
+                >−</button>
+                <span className="tabular-nums text-[15px] font-semibold w-10 text-center" style={{ color: "var(--color-text-primary)" }}>
+                  {value}%
+                </span>
+                <button
+                  onClick={() => { set(Math.min(100, value + 1)); setSaved(false); }}
+                  className="w-9 h-9 rounded-button flex items-center justify-center font-semibold text-lg transition-opacity active:opacity-60"
+                  style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-primary)" }}
+                  aria-label="Aumentar"
+                >+</button>
+              </div>
+            </div>
+          ))}
+
+          {/* Soma + preview */}
+          <p
+            className="text-[13px] font-semibold"
+            style={{ color: sum === 100 ? "var(--color-success)" : "var(--color-danger)" }}
+          >
+            Soma: {sum}% {sum !== 100 ? "— precisa fechar em 100%" : ""}
+          </p>
+          {preview && (
+            <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+              Com {memberCount} participante{memberCount !== 1 ? "s" : ""}: pote {formatPrize(preview.total)} →{" "}
+              {preview.shares.map((s) => `${s.label} ${formatPrize(s.amount)}`).join(", ")}
+            </p>
+          )}
+
+          <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-text-secondary)", opacity: 0.8 }}>
+            O site não cobra nem paga nada. Só exibe quanto cada um leva — o grupo acerta o dinheiro por fora.
+          </p>
+        </div>
+      )}
+
+      {/* Botão salvar */}
+      {saved ? (
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-success)" }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l2.5 2.5L10 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <p className="text-[13px] font-semibold" style={{ color: "var(--color-success)" }}>Premiação salva.</p>
+        </div>
+      ) : (
+        <button
+          onClick={handleSave}
+          disabled={saving || (enabled && sum !== 100)}
+          className="w-full py-3 rounded-button text-white font-semibold text-[15px] transition-all active:scale-[0.98] disabled:opacity-40"
+          style={{ background: "var(--color-accent)", transitionTimingFunction: "var(--ease-spring)" }}
+        >
+          {saving ? "Salvando…" : "Salvar premiação"}
+        </button>
+      )}
+
+      {err && (
+        <p className="text-[13px] font-medium" style={{ color: "var(--color-danger)" }}>{err}</p>
+      )}
     </div>
   );
 }

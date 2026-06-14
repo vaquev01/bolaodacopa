@@ -27,6 +27,9 @@ interface Props {
   existingName?: string;
 }
 
+// Modo do formulário quando não tem sessão: cadastro ou login
+type FormMode = "register" | "login";
+
 export default function EntrarClient({
   pool,
   membersCount,
@@ -36,8 +39,25 @@ export default function EntrarClient({
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(existingName ?? "");
+  const [password, setPassword] = useState("");
+  const [formMode, setFormMode] = useState<FormMode>("register");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function joinPool() {
+    const r = await fetch("/api/pools/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: pool.slug }),
+    });
+
+    if (!r.ok) {
+      const d = await r.json();
+      setError(d.message ?? "Não foi possível entrar no bolão. Tente novamente.");
+      return false;
+    }
+    return true;
+  }
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -52,29 +72,49 @@ export default function EntrarClient({
           return;
         }
 
-        const r = await fetch("/api/profiles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim() }),
-        });
+        if (formMode === "register") {
+          if (password.length < 4) {
+            setError("A senha precisa ter pelo menos 4 caracteres.");
+            setLoading(false);
+            return;
+          }
 
-        if (!r.ok) {
-          const d = await r.json();
-          setError(d.message ?? "Não foi possível criar o perfil. Tente novamente.");
-          setLoading(false);
-          return;
+          const r = await fetch("/api/session/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name.trim(), password }),
+          });
+
+          if (!r.ok) {
+            const d = await r.json();
+            if (d.error === "login_taken") {
+              // Conta com este nome já existe — sugere modo login
+              setError(d.message + " Já é sua conta? Use o modo abaixo.");
+              setLoading(false);
+              return;
+            }
+            setError(d.message ?? "Não foi possível criar a conta. Tente novamente.");
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Modo login
+          const r = await fetch("/api/session/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name.trim(), password }),
+          });
+
+          if (!r.ok) {
+            setError("Nome ou senha incorretos.");
+            setLoading(false);
+            return;
+          }
         }
       }
 
-      const r = await fetch("/api/pools/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: pool.slug }),
-      });
-
-      if (!r.ok) {
-        const d = await r.json();
-        setError(d.message ?? "Não foi possível entrar no bolão. Tente novamente.");
+      const ok = await joinPool();
+      if (!ok) {
         setLoading(false);
         return;
       }
@@ -193,28 +233,70 @@ export default function EntrarClient({
         {/* Formulário de entrada */}
         <form onSubmit={handleJoin} className="flex flex-col gap-4 mt-auto">
           {!alreadyHasSession && (
-            <div>
-              <label
-                className="block text-[13px] font-medium mb-1.5"
-                style={{ color: "var(--color-text-secondary)" }}
-              >
-                Qual é o seu nome? <span style={{ opacity: 0.7 }}>(é assim que você aparece no ranking)</span>
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Como você quer ser chamado"
-                maxLength={64}
-                autoFocus
-                className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
-                style={{
-                  background: "var(--color-bg-card)",
-                  borderColor: "var(--border-subtle)",
-                  color: "var(--color-text-primary)",
+            <>
+              <div>
+                <label
+                  className="block text-[13px] font-medium mb-1.5"
+                  style={{ color: "var(--color-text-secondary)" }}
+                >
+                  Qual é o seu nome? <span style={{ opacity: 0.7 }}>(é assim que você aparece no ranking)</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Como você quer ser chamado"
+                  maxLength={64}
+                  autoFocus
+                  className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
+                  style={{
+                    background: "var(--color-bg-card)",
+                    borderColor: "var(--border-subtle)",
+                    color: "var(--color-text-primary)",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  className="block text-[13px] font-medium mb-1.5"
+                  style={{ color: "var(--color-text-secondary)" }}
+                >
+                  {formMode === "register" ? "Crie uma senha" : "Senha"}
+                  {formMode === "register" && (
+                    <span style={{ opacity: 0.7 }}> — pra você acessar de qualquer celular depois</span>
+                  )}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={formMode === "register" ? "Mínimo 4 caracteres" : "Sua senha"}
+                  autoComplete={formMode === "register" ? "new-password" : "current-password"}
+                  className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
+                  style={{
+                    background: "var(--color-bg-card)",
+                    borderColor: "var(--border-subtle)",
+                    color: "var(--color-text-primary)",
+                  }}
+                />
+              </div>
+
+              {/* Toggle cadastro ↔ login */}
+              <button
+                type="button"
+                onClick={() => {
+                  setFormMode(formMode === "register" ? "login" : "register");
+                  setError(null);
                 }}
-              />
-            </div>
+                className="text-[13px] font-medium text-left"
+                style={{ color: "var(--color-accent)" }}
+              >
+                {formMode === "register"
+                  ? "Já é seu? Entrar com nome e senha"
+                  : "Criar nova conta neste bolão"}
+              </button>
+            </>
           )}
 
           {error && (
@@ -240,7 +322,7 @@ export default function EntrarClient({
             className="text-[11px] text-center"
             style={{ color: "var(--color-text-secondary)" }}
           >
-            Sem senha. Em menos de 60 segundos você já está palpitando.
+            Crie nome e senha uma vez — depois é só esse login em qualquer aparelho.
           </p>
         </form>
       </div>

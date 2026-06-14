@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { Match, Prediction, PredictionScore, StandingRow } from "@/lib/types";
 import type { Ruleset } from "@/lib/scoring";
+import { computePrizePool, formatPrize } from "@/lib/scoring";
 import { formatKickoff, deadlineLabel, deadlineUrgency, getFlag, stageLabel } from "@/lib/utils";
 import SpecialBetsCard from "./SpecialBetsCard";
 import BracketCard from "./BracketCard";
@@ -62,6 +63,7 @@ interface Props {
   myBracket?: Record<string, unknown> | null;
   bracketLockAt?: string | null;
   bracketLocked?: boolean;
+  memberCount?: number;
 }
 
 type Tab = "palpites" | "ranking" | "bracket";
@@ -88,6 +90,7 @@ export default function BolaoClient({
   myBracket = null,
   bracketLockAt = null,
   bracketLocked = false,
+  memberCount = 0,
 }: Props) {
   const router = useRouter();
   // Modo classificação: tab default é bracket (se disponível), senão palpites
@@ -108,6 +111,32 @@ export default function BolaoClient({
   });
 
   const [saveState, setSaveState] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
+
+  // ── Auto-refresh do ranking a cada 30s + ao voltar ao app ──────────────────
+  // Não interrompe ciclos de save em andamento.
+  const saveStateRef = useRef(saveState);
+  useEffect(() => { saveStateRef.current = saveState; }, [saveState]);
+
+  useEffect(() => {
+    function maybeRefresh() {
+      const isSaving = Object.values(saveStateRef.current).some((s) => s === "saving");
+      if (!isSaving) router.refresh();
+    }
+
+    const timer = setInterval(maybeRefresh, 30_000);
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") maybeRefresh();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", maybeRefresh);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", maybeRefresh);
+    };
+  }, [router]);
 
   const scoreByPredId = new Map(scores.map((s) => [s.prediction_id, s]));
   const predIdByMatch = new Map(predictions.map((p) => [p.match_id, p.id]));
@@ -317,12 +346,21 @@ export default function BolaoClient({
           </div>
         )}
         {tab === "ranking" && (
-          <RankingTab
-            ranking={ranking}
-            currentUserId={currentUserId}
-            bracketEnabled={bracketEnabled}
-            onShowRules={() => setShowRules(true)}
-          />
+          <div className="flex flex-col">
+            {ruleset.prize?.enabled && (
+              <div className="px-4 pt-3 pb-1">
+                <div className="max-w-lg mx-auto">
+                  <PrizeCard prize={ruleset.prize} memberCount={memberCount} />
+                </div>
+              </div>
+            )}
+            <RankingTab
+              ranking={ranking}
+              currentUserId={currentUserId}
+              bracketEnabled={bracketEnabled}
+              onShowRules={() => setShowRules(true)}
+            />
+          </div>
         )}
         {tab === "bracket" && bracketEnabled && (
           <div className="px-4 py-3">
@@ -1221,6 +1259,63 @@ function saveStateLabelStr(
   return "";
 }
 
+/* ─── Prize Card ─── */
+
+function PrizeCard({
+  prize,
+  memberCount,
+}: {
+  prize: Ruleset["prize"];
+  memberCount: number;
+}) {
+  const pool = computePrizePool(prize, memberCount);
+  if (!pool.enabled) return null;
+
+  const PLACE_EMOJI = ["🥇", "🥈", "🥉", "4º", "5º", "6º", "7º", "8º"];
+
+  return (
+    <div
+      className="rounded-card p-4 flex flex-col gap-3"
+      style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
+    >
+      {/* Cabeçalho */}
+      <div>
+        <p className="text-[15px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+          Premiação
+        </p>
+        <p className="text-[13px] mt-0.5" style={{ color: "var(--color-text-secondary)" }}>
+          {formatPrize(pool.buyIn, pool.currency)}/pessoa × {pool.members} participante{pool.members !== 1 ? "s" : ""} = pote{" "}
+          <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
+            {formatPrize(pool.total, pool.currency)}
+          </span>
+        </p>
+      </div>
+
+      {/* Fatias */}
+      <div className="flex flex-col gap-1.5">
+        {pool.shares.map((s) => (
+          <div key={s.place} className="flex items-center justify-between">
+            <span className="text-[14px]" style={{ color: "var(--color-text-secondary)" }}>
+              {PLACE_EMOJI[s.place - 1] ?? `${s.place}º`} {s.label}
+            </span>
+            <span className="text-[15px] font-semibold tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+              {formatPrize(s.amount, pool.currency)}{" "}
+              <span className="text-[12px] font-normal" style={{ color: "var(--color-text-secondary)" }}>
+                ({s.pct}%)
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Aviso */}
+      <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-text-secondary)", opacity: 0.75 }}>
+        Valores informativos. O site não processa pagamentos.
+      </p>
+    </div>
+  );
+}
+
 /* ─── Ranking Tab ─── */
 
 function RankingTab({
@@ -1263,6 +1358,10 @@ function RankingTab({
   return (
     <div className="px-4 py-3">
       <div className="max-w-lg mx-auto flex flex-col gap-2">
+        {/* Indicador de atualização automática */}
+        <p className="text-[11px] pb-1" style={{ color: "var(--color-text-secondary)", opacity: 0.6 }}>
+          Atualiza sozinho durante os jogos
+        </p>
         {myRow && myIndex > 4 && (
           <div
             className="rounded-card p-3 flex items-center gap-3 mb-1"

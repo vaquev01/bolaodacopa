@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_RULESET } from "@/lib/scoring";
+import { DEFAULT_RULESET, splitsSum, formatPrize, computePrizePool } from "@/lib/scoring";
 import type { Match } from "@/lib/types";
 import { formatKickoff, stageLabel } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/browser";
@@ -46,8 +46,15 @@ interface WizardState {
   bracketPointsThirdPlace: number;
   bracketPointsRunnerUp: number;
   bracketPointsChampion: number;
+  // Premiação informativa (v1.8)
+  prizeEnabled: boolean;
+  prizeBuyIn: number;
+  prizeSplit1: number;
+  prizeSplit2: number;
+  prizeSplit3: number;
   // Dados user
   userName: string;
+  userPassword: string;
 }
 
 const DEADLINE_OPTIONS = [
@@ -100,7 +107,14 @@ export default function CriarPage() {
     bracketPointsThirdPlace: DEFAULT_RULESET.advance_predictions.points.third_place,
     bracketPointsRunnerUp: DEFAULT_RULESET.advance_predictions.points.runner_up,
     bracketPointsChampion: DEFAULT_RULESET.advance_predictions.points.champion,
+    // Premiação informativa — default desligado
+    prizeEnabled: false,
+    prizeBuyIn: 100,
+    prizeSplit1: 60,
+    prizeSplit2: 25,
+    prizeSplit3: 15,
     userName: "",
+    userPassword: "",
   });
 
   useEffect(() => {
@@ -191,21 +205,30 @@ export default function CriarPage() {
     setLoading(true);
 
     try {
-      // Criar perfil se sem sessão
+      // Criar conta e sessão se sem sessão
       if (!hasSession) {
         if (!state.userName.trim()) {
           setError("Digite seu nome para criar o bolão.");
           setLoading(false);
           return;
         }
-        const r = await fetch("/api/profiles", {
+        if (state.userPassword.length < 4) {
+          setError("A senha precisa ter pelo menos 4 caracteres.");
+          setLoading(false);
+          return;
+        }
+        const r = await fetch("/api/session/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: state.userName.trim() }),
+          body: JSON.stringify({ name: state.userName.trim(), password: state.userPassword }),
         });
         if (!r.ok) {
           const d = await r.json();
-          setError(d.message ?? "Erro ao criar perfil.");
+          if (d.error === "login_taken") {
+            setError("Este nome já está em uso. Escolha outro nome ou vá para /entrar para acessar sua conta.");
+          } else {
+            setError(d.message ?? "Erro ao criar conta.");
+          }
           setLoading(false);
           return;
         }
@@ -220,6 +243,15 @@ export default function CriarPage() {
       // "Só classificação" com placar extra: única camada que pontua nos
       // jogos é o placar em cheio — todas as outras valem 0.
       const specialsExtra = specialsOnly && state.specialsExactEnabled;
+      const prizeData = state.prizeEnabled
+        ? {
+            enabled: true,
+            currency: "BRL",
+            buy_in: state.prizeBuyIn,
+            splits: [state.prizeSplit1, state.prizeSplit2, state.prizeSplit3],
+          }
+        : { enabled: false, currency: "BRL", buy_in: 0, splits: [60, 25, 15] };
+
       const ruleset = {
         ...DEFAULT_RULESET,
         prediction_mode: specialsOnly ? "score" : state.predictionMode,
@@ -283,6 +315,7 @@ export default function CriarPage() {
             champion: state.bracketPointsChampion,
           },
         },
+        prize: prizeData,
       };
 
       const scope =
@@ -1056,6 +1089,106 @@ export default function CriarPage() {
               </p>
             </div>
 
+            {/* ── Premiação informativa ── */}
+            <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0 pr-3">
+                  <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    Esse bolão vale prêmio em dinheiro?
+                  </p>
+                  <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Opcional — o site só calcula e exibe os valores.
+                  </p>
+                </div>
+                <Toggle
+                  value={state.prizeEnabled}
+                  onChange={(v) => update("prizeEnabled", v)}
+                />
+              </div>
+
+              {state.prizeEnabled && (
+                <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: "var(--color-bg-secondary)" }}>
+                  {/* Entrada por pessoa */}
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                      Quanto cada pessoa entra? (R$)
+                    </p>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99999"
+                      value={state.prizeBuyIn}
+                      onChange={(e) => update("prizeBuyIn", Math.max(1, Number(e.target.value) || 1))}
+                      className="w-24 px-3 py-2 rounded-button border text-[15px] text-right outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent] tabular-nums"
+                      style={{
+                        background: "var(--color-bg-secondary)",
+                        borderColor: "var(--border-subtle)",
+                        color: "var(--color-text-primary)",
+                      }}
+                    />
+                  </div>
+
+                  {/* Splits */}
+                  <div>
+                    <p className="text-[13px] font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                      Divisão do prêmio (%)
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {(
+                        [
+                          { key: "prizeSplit1" as const, label: "1º lugar" },
+                          { key: "prizeSplit2" as const, label: "2º lugar" },
+                          { key: "prizeSplit3" as const, label: "3º lugar" },
+                        ] as const
+                      ).map(({ key, label }) => (
+                        <div key={key} className="flex items-center justify-between gap-3">
+                          <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>{label}</p>
+                          <div className="flex items-center gap-2">
+                            <StepperButton onClick={() => update(key, Math.max(0, (state[key] as number) - 1))} label="−" />
+                            <span className="tabular-nums text-[17px] font-semibold w-10 text-center" style={{ color: "var(--color-text-primary)" }}>
+                              {state[key] as number}%
+                            </span>
+                            <StepperButton onClick={() => update(key, Math.min(100, (state[key] as number) + 1))} label="+" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Soma e preview */}
+                    {(() => {
+                      const splits = [state.prizeSplit1, state.prizeSplit2, state.prizeSplit3];
+                      const sum = splitsSum(splits);
+                      const preview = computePrizePool(
+                        { enabled: true, currency: "BRL", buy_in: state.prizeBuyIn, splits },
+                        10
+                      );
+                      return (
+                        <div className="mt-3 flex flex-col gap-1.5">
+                          <p
+                            className="text-[13px] font-semibold"
+                            style={{ color: sum === 100 ? "var(--color-success)" : "var(--color-danger)" }}
+                          >
+                            Soma: {sum}% {sum !== 100 ? "— precisa fechar em 100%" : ""}
+                          </p>
+                          {sum === 100 && (
+                            <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                              Preview com 10 participantes: pote {formatPrize(preview.total)} →{" "}
+                              {preview.shares.map((s) => `${s.label} ${formatPrize(s.amount)}`).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Aviso discreto */}
+                  <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-text-secondary)", opacity: 0.8 }}>
+                    O site não cobra nem paga nada. Ele só mostra quanto cada um leva — o grupo acerta o dinheiro por fora.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Card revisão */}
             <div className="p-4 rounded-card flex flex-col gap-3" style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}>
               <ReviewRow label="Nome" value={state.poolName} />
@@ -1133,28 +1266,55 @@ export default function CriarPage() {
                 (state.championEnabled || state.qualifiersEnabled || state.bracketEnabled || state.scopeType === "specials_only") && (
                 <ReviewRow label="Pré-Copa trava em" value={effectivePreCopaLockLabel} />
               )}
+              <ReviewRow
+                label="Premiação"
+                value={state.prizeEnabled
+                  ? `${formatPrize(state.prizeBuyIn)}/pessoa · 1º ${state.prizeSplit1}%, 2º ${state.prizeSplit2}%, 3º ${state.prizeSplit3}%`
+                  : "Sem premiação"}
+              />
             </div>
 
-            {/* Campo de nome se sem sessão */}
+            {/* Campo de nome + senha se sem sessão */}
             {hasSession === false && (
-              <div>
-                <label className="block text-[13px] font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
-                  Seu nome (organizador)
-                </label>
-                <input
-                  type="text"
-                  value={state.userName}
-                  onChange={(e) => update("userName", e.target.value)}
-                  placeholder="Como você quer ser chamado?"
-                  maxLength={64}
-                  className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
-                  style={{
-                    background: "var(--color-bg-card)",
-                    borderColor: "var(--border-subtle)",
-                    color: "var(--color-text-primary)",
-                  }}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-[13px] font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+                    Seu nome (organizador)
+                  </label>
+                  <input
+                    type="text"
+                    value={state.userName}
+                    onChange={(e) => update("userName", e.target.value)}
+                    placeholder="Como você quer ser chamado?"
+                    maxLength={64}
+                    className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+                    Crie uma senha{" "}
+                    <span style={{ opacity: 0.7 }}>(pra acessar de qualquer aparelho depois)</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={state.userPassword}
+                    onChange={(e) => update("userPassword", e.target.value)}
+                    placeholder="Mínimo 4 caracteres"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-3 rounded-button border text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+              </>
             )}
 
             {error && (

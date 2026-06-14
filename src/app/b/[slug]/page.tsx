@@ -322,6 +322,8 @@ export default async function BolaoPage({ params }: Props) {
     }
   }
 
+  const memberCount = (membersRaw ?? []).length;
+
   return (
     <BolaoClient
       pool={pool}
@@ -345,6 +347,7 @@ export default async function BolaoPage({ params }: Props) {
       myBracket={myBracket}
       bracketLockAt={bracketLockAt}
       bracketLocked={bracketLocked}
+      memberCount={memberCount}
     />
   );
 }

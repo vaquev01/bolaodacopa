@@ -5,6 +5,13 @@ export {
   type Ruleset,
 } from "./ruleset";
 export {
+  computePrizePool,
+  splitsSum,
+  formatPrize,
+  type PrizePool,
+  type PrizeShare,
+} from "./prize";
+export {
   scorePrediction,
   type Stage,
   type MatchStatus,

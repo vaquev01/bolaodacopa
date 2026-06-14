@@ -1,6 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { parseRuleset } from "@/lib/scoring";
 import AdminClient from "./AdminClient";
 
 interface Props {
@@ -20,7 +21,7 @@ export default async function AdminPage({ params }: Props) {
   // Buscar pool
   const { data: pool } = await supabase
     .from("pools")
-    .select("id, name, slug, owner_id, scope")
+    .select("id, name, slug, owner_id, scope, ruleset")
     .eq("slug", slug)
     .single();
 
@@ -37,6 +38,15 @@ export default async function AdminPage({ params }: Props) {
   if (pool.owner_id !== session.userId) {
     redirect(`/b/${slug}`);
   }
+
+  const ruleset = parseRuleset(pool.ruleset);
+
+  // Contar membros ativos
+  const { count: memberCount } = await supabase
+    .from("pool_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("pool_id", pool.id)
+    .eq("status", "active");
 
   // Buscar jogos do escopo
   const scope = pool.scope as { type: string; match_ids?: string[] };
@@ -55,6 +65,8 @@ export default async function AdminPage({ params }: Props) {
     <AdminClient
       pool={{ id: pool.id, name: pool.name, slug: pool.slug }}
       matches={matches ?? []}
+      ruleset={ruleset}
+      memberCount={memberCount ?? 0}
     />
   );
 }

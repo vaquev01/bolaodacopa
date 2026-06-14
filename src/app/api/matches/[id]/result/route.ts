@@ -166,6 +166,8 @@ export async function POST(
 
     // 6. Salvar pontuações via RPC
     const { error: scoresError } = await supabase.rpc("save_scores", {
+      p_user: session.userId,
+      p_secret: session.secret,
       p_rows: rows,
     });
 

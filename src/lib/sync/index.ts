@@ -88,7 +88,7 @@ export async function runSync(cfg: SyncConfig): Promise<SyncReport> {
       continue;
     }
 
-    const scored = await rescoreMatch(supabase, u);
+    const scored = await rescoreMatch(supabase, u, cfg);
     report.updated.push({ label: u.label, scored });
   }
 
@@ -102,7 +102,8 @@ export async function runSync(cfg: SyncConfig): Promise<SyncReport> {
  */
 async function rescoreMatch(
   supabase: SupabaseClient,
-  u: MatchUpdate
+  u: MatchUpdate,
+  cfg: SyncConfig
 ): Promise<number> {
   const { data: match } = await supabase
     .from("matches")
@@ -159,7 +160,11 @@ async function rescoreMatch(
   }
 
   if (rows.length === 0) return 0;
-  const { error } = await supabase.rpc("save_scores", { p_rows: rows });
+  const { error } = await supabase.rpc("save_scores", {
+    p_user: cfg.syncUserId,
+    p_secret: cfg.syncSecret,
+    p_rows: rows,
+  });
   if (error) throw new Error(`save_scores: ${error.message}`);
   return rows.length;
 }

@@ -52,7 +52,7 @@ export default function ConviteClient({ pool, ruleset }: { pool: Pool; ruleset: 
   const inviteUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/b/${pool.slug}/entrar`
-      : `https://bolao.app/b/${pool.slug}/entrar`;
+      : `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://bolao-da-copa.up.railway.app"}/b/${pool.slug}/entrar`;
 
   const lines = rulesetLines(ruleset);
 

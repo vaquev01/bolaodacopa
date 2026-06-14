@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   },
   description:
     "Faça seus palpites, acompanhe o ranking e dispute com os amigos na Copa do Mundo 2026.",
-  metadataBase: new URL("https://bolao.app"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://bolao-da-copa.up.railway.app"
+  ),
   openGraph: {
     type: "website",
     locale: "pt_BR",

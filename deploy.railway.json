@@ -5,6 +5,7 @@
   "migrate": "node scripts/migrate.mjs",
   "vars": {
     "ENABLE_SYNC_CRON": "true",
+    "NEXT_PUBLIC_SITE_URL": "https://bolao-da-copa.up.railway.app",
     "NEXT_PUBLIC_SUPABASE_URL": "https://rsippykwiffybjfgljzj.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@vault:bolao-anon",
     "FOOTBALL_DATA_TOKEN": "@vault:football-data",

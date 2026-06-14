@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { Ruleset } from "@/lib/scoring";
 
 interface Pool {
   id: string;
@@ -9,7 +10,42 @@ interface Pool {
   slug: string;
 }
 
-export default function ConviteClient({ pool }: { pool: Pool }) {
+/**
+ * Resume as regras DESTE bolão em linhas curtas (puxadas do ruleset real) —
+ * usado tanto na mensagem de convite quanto no card "Como funciona" da tela.
+ */
+function rulesetLines(ruleset: Ruleset): string[] {
+  const lines: string[] = [];
+  const adv = ruleset.advance_predictions;
+
+  if (adv?.enabled) {
+    const p = adv.points;
+    lines.push(
+      `🥇 Acertar QUEM PASSA vale mais: classificado +${p.group_qualified}, oitavas +${p.r16}, quartas +${p.qf}, semis +${p.sf}, final +${p.final}, campeão +${p.champion}`
+    );
+  } else if (ruleset.special_bets?.champion?.enabled) {
+    lines.push(`🏆 Cravar o campeão vale +${ruleset.special_bets.champion.points}`);
+  }
+
+  if (ruleset.prediction_mode === "winner") {
+    const bonus =
+      ruleset.scoring.winner_exact_bonus > 0
+        ? ` (e cravar o placar dá +${ruleset.scoring.winner_exact_bonus})`
+        : "";
+    lines.push(`✅ Acertar quem ganha cada jogo: +${ruleset.scoring.winner_pick}${bonus}`);
+  } else {
+    lines.push(
+      `⚽ Placar dos jogos (bônus): placar exato +${ruleset.scoring.exact_score}, vencedor +${ruleset.scoring.winner_only}`
+    );
+  }
+
+  lines.push(
+    `⏰ Dá pra palpitar e editar até 15 min antes de cada jogo (os palpites de campeão/classificação fecham no 1º jogo da Copa).`
+  );
+  return lines;
+}
+
+export default function ConviteClient({ pool, ruleset }: { pool: Pool; ruleset: Ruleset }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
 
@@ -18,10 +54,14 @@ export default function ConviteClient({ pool }: { pool: Pool }) {
       ? `${window.location.origin}/b/${pool.slug}/entrar`
       : `https://bolao.app/b/${pool.slug}/entrar`;
 
+  const lines = rulesetLines(ruleset);
+
   const whatsappText = encodeURIComponent(
-    `🏆 Bora pro bolão da Copa 2026 "${pool.name}"?\n\n` +
-      `Você palpita nos jogos e a gente disputa o ranking — de graça, sem cadastro e sem dinheiro. ` +
-      `Leva 1 minuto pra entrar:\n${inviteUrl}`
+    `🏆 Bolão da Copa 2026 — "${pool.name}"\n\n` +
+      `Monte seu palpite e dispute o ranking com a galera. De graça, sem cadastro, sem dinheiro.\n\n` +
+      `📋 Como pontua neste bolão:\n` +
+      lines.map((l) => `• ${l}`).join("\n") +
+      `\n\nEntrar leva 1 minuto:\n${inviteUrl}`
   );
   const whatsappUrl = `https://wa.me/?text=${whatsappText}`;
 
@@ -129,6 +169,23 @@ export default function ConviteClient({ pool }: { pool: Pool }) {
             </div>
           </div>
         </button>
+
+        {/* Resumo do que vai junto no convite — regras DESTE bolão */}
+        <div
+          className="w-full p-4 rounded-card flex flex-col gap-2 text-left"
+          style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--color-text-secondary)" }}>
+            Vai junto no convite — como pontua
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {lines.map((l) => (
+              <li key={l} className="text-[13px] leading-snug" style={{ color: "var(--color-text-primary)" }}>
+                {l}
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {/* WhatsApp CTA primário */}
         <a

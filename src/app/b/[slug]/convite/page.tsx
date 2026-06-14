@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server";
+import { parseRuleset } from "@/lib/scoring";
 import ConviteClient from "./ConviteClient";
 
 interface Props {
@@ -11,7 +12,7 @@ export default async function ConvitePage({ params }: Props) {
 
   const { data: pool } = await supabase
     .from("pools")
-    .select("id, name, slug")
+    .select("id, name, slug, ruleset")
     .eq("slug", slug)
     .single();
 
@@ -24,5 +25,6 @@ export default async function ConvitePage({ params }: Props) {
     );
   }
 
-  return <ConviteClient pool={pool} />;
+  const ruleset = parseRuleset(pool.ruleset);
+  return <ConviteClient pool={{ id: pool.id, name: pool.name, slug: pool.slug }} ruleset={ruleset} />;
 }

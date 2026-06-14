@@ -3,7 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Ruleset } from "@/lib/scoring";
 import { deriveBracketOutcome, type BracketMatchInput } from "@/lib/scoring";
-import { mapKnockoutByFifaNumber, stageOfFifaNumber } from "@/lib/scoring/wc26-pairings";
+import {
+  mapKnockoutByFifaNumber,
+  stageOfFifaNumber,
+  R32_MATCHES,
+  R16_MATCHES,
+  QF_MATCHES,
+  SF_MATCHES,
+} from "@/lib/scoring/wc26-pairings";
 import type { Match } from "@/lib/types";
 import { getFlag } from "@/lib/utils";
 import BracketBoard from "./BracketBoard";
@@ -87,6 +94,54 @@ function parseBracket(raw: Record<string, unknown> | null): BracketPayload {
   return p;
 }
 
+/**
+ * Lista de pendências que impedem o bracket de ser considerado completo.
+ * Vazia = pronto pra salvar. Cada item é uma frase do que falta finalizar.
+ */
+function bracketGaps(
+  payload: BracketPayload,
+  activeGroups: readonly string[],
+  thirdCandidates: string[]
+): string[] {
+  const gaps: string[] = [];
+
+  // 1. Grupos — 1º, 2º e 3º de cada grupo ativo
+  const incomplete = activeGroups.filter((g) => {
+    const p = payload.groups[g] ?? [];
+    return !(p[0] && p[1] && p[2]);
+  });
+  if (incomplete.length > 0) {
+    gaps.push(
+      `Marque 1º, 2º e 3º ${incomplete.length === 1 ? "do grupo" : "dos grupos"} ${incomplete.join(", ")}`
+    );
+  }
+
+  // 2. Melhores terceiros — escolher 8 (só cobra quando há candidatos suficientes)
+  if (thirdCandidates.length >= 8 && payload.third_qualifiers.length < 8) {
+    gaps.push(`Escolha os 8 melhores terceiros (faltam ${8 - payload.third_qualifiers.length})`);
+  }
+
+  // 3. Mata-mata em cascata — só cobra a fase seguinte se a anterior fechou
+  if (payload.r16_winners.length < R32_MATCHES.length) {
+    gaps.push(`Defina quem vence nos 16 avos (faltam ${R32_MATCHES.length - payload.r16_winners.length} de ${R32_MATCHES.length})`);
+  } else if (payload.qf_winners.length < R16_MATCHES.length) {
+    gaps.push(`Defina quem vence nas oitavas (faltam ${R16_MATCHES.length - payload.qf_winners.length} de ${R16_MATCHES.length})`);
+  } else if (payload.sf_winners.length < QF_MATCHES.length) {
+    gaps.push(`Defina quem vence nas quartas (faltam ${QF_MATCHES.length - payload.sf_winners.length} de ${QF_MATCHES.length})`);
+  } else if (payload.finalists.length < SF_MATCHES.length) {
+    gaps.push(`Defina os finalistas (faltam ${SF_MATCHES.length - payload.finalists.length} de ${SF_MATCHES.length})`);
+  } else if (!payload.champion) {
+    gaps.push("Escolha o campeão");
+  }
+
+  // 4. 3º lugar — quando a final já está definida
+  if (payload.champion && payload.finalists.length >= SF_MATCHES.length && !payload.third_place) {
+    gaps.push("Escolha o 3º lugar (entre os perdedores das semis)");
+  }
+
+  return gaps;
+}
+
 function useCountdown(lockAt: string | null): { label: string; urgency: "ok" | "warning" | "danger" } {
   const [state, setState] = useState({ label: "", urgency: "ok" as "ok" | "warning" | "danger" });
 
@@ -139,8 +194,9 @@ export default function BracketCard({
   onSaveScore,
 }: Props) {
   const [payload, setPayload] = useState<BracketPayload>(() => parseBracket(myBracket));
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error" | "incomplete">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showGaps, setShowGaps] = useState(false);
   const { label: countdownLabel, urgency: countdownUrgency } = useCountdown(lockAt);
 
   const pts = ruleset.advance_predictions?.points;
@@ -164,6 +220,9 @@ export default function BracketCard({
   const thirdCandidates = activeGroups
     .map((g) => (payload.groups[g] ?? [])[2])
     .filter((t): t is string => Boolean(t));
+
+  // Pendências ao vivo (atualizam conforme o usuário preenche)
+  const liveGaps = bracketGaps(payload, activeGroups, thirdCandidates);
 
   // Derivar lista de qualificados: 1º e 2º de cada grupo + os 8 melhores 3ºs
   // escolhidos (groups[g][2] é o 3º do grupo — candidato, não classificado)
@@ -281,6 +340,14 @@ export default function BracketCard({
   }
 
   async function handleSave() {
+    // Bloqueia salvar com algo em aberto — sinaliza exatamente o que falta
+    if (liveGaps.length > 0) {
+      setShowGaps(true);
+      setStatus("incomplete");
+      setErrorMsg("");
+      return;
+    }
+    setShowGaps(false);
     setStatus("saving");
     setErrorMsg("");
     try {
@@ -565,14 +632,63 @@ export default function BracketCard({
       {errorMsg && (
         <p className="text-[13px]" style={{ color: "var(--color-danger)" }}>{errorMsg}</p>
       )}
+
+      {/* Pendências — bloqueia o salvar e diz exatamente o que falta finalizar */}
+      {showGaps && liveGaps.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-card p-4 flex flex-col gap-2"
+          style={{
+            background: "color-mix(in srgb, var(--color-warning) 12%, var(--color-bg-card))",
+            border: "1px solid var(--color-warning)",
+          }}
+        >
+          <p className="text-[14px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+            Falta finalizar pra salvar ({liveGaps.length})
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {liveGaps.map((g) => (
+              <li key={g} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+                <span aria-hidden="true" style={{ color: "var(--color-warning)" }}>○</span>
+                <span>{g}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {showGaps && liveGaps.length === 0 && status !== "saved" && (
+        <div
+          role="status"
+          className="rounded-card p-3 text-[13px] font-semibold"
+          style={{
+            background: "color-mix(in srgb, var(--color-success) 12%, var(--color-bg-card))",
+            border: "1px solid var(--color-success)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          Tudo preenchido ✓ — toque em Salvar Bracket.
+        </div>
+      )}
+
       <div className="sticky bottom-4 z-10">
         <button
           onClick={handleSave}
           disabled={status === "saving"}
           className="w-full py-4 rounded-button text-white font-semibold text-[17px] transition-opacity disabled:opacity-60 shadow-lg"
-          style={{ background: "var(--color-accent)" }}
+          style={{
+            background:
+              status === "incomplete" && liveGaps.length > 0
+                ? "var(--color-warning)"
+                : "var(--color-accent)",
+          }}
         >
-          {status === "saving" ? "Salvando…" : status === "saved" ? "Salvo!" : "Salvar Bracket"}
+          {status === "saving"
+            ? "Salvando…"
+            : status === "saved"
+              ? "Salvo!"
+              : status === "incomplete" && liveGaps.length > 0
+                ? `Faltam ${liveGaps.length} — toque pra ver`
+                : "Salvar Bracket"}
         </button>
       </div>
 

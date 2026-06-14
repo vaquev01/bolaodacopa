@@ -1,6 +1,14 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 14:46 (v1.12 — **DEPLOY no ar + HARDENING do banco aplicado + schema versionado**)
+**Atualizado:** 2026-06-14 15:10 (v1.13 — validação de bracket completo + convite explica regras do bolão)
+
+## v1.13 — Bracket à prova de incompleto + convite didático (2026-06-14)
+
+Victor: "não deixe salvar o bracket com algo em aberto e sinalize o que falta" + "o link do convite tem que explicar como funciona o bolão específico e as pontuações".
+
+- **Validação de completude do bracket** (`BracketCard.tsx`): função pura `bracketGaps()` deriva o que falta (grupos sem 1º/2º/3º, <8 melhores 3ºs, vencedores faltando por fase via `R32/R16/QF/SF_MATCHES.length`, campeão, 3º lugar). `handleSave` BLOQUEIA o POST se há pendências; painel laranja lista exatamente o que finalizar; o botão vira "Faltam N — toque pra ver". Lista atualiza ao vivo conforme preenche; quando zera, vira "Tudo preenchido ✓"
+- **Convite explica o bolão** (`ConviteClient.tsx` + `convite/page.tsx`): `rulesetLines()` resume as regras DESTE bolão a partir do ruleset real (quem-passa com pontos por fase, ou campeão; placar exato/vencedor ou modo só-vencedor; prazo de 15 min). Mensagem do WhatsApp agora leva "Como pontua neste bolão" + card na tela pro criador conferir antes de enviar
+- Prazos RE-confirmados no banco: `_lock_at = kickoff − 15min` (criar E editar), bracket trava no 1º jogo. 143/143 testes, build limpo
 
 ## 🔒 Hardening do banco APLICADO (2026-06-14 14:45)
 

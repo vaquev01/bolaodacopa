@@ -1,6 +1,16 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 14:15 (v1.12 — rebalance "quem passa vale mais" + **DEPLOY NO AR no Railway**)
+**Atualizado:** 2026-06-14 14:46 (v1.12 — **DEPLOY no ar + HARDENING do banco aplicado + schema versionado**)
+
+## 🔒 Hardening do banco APLICADO (2026-06-14 14:45)
+
+Brechas fechadas via Supabase Management API (token `keli-vault/supabase`):
+- **`save_scores`**: antes SEM auth (qualquer um com anon key sobrescrevia pontuação). Agora exige `p_user/p_secret` + `_is_sync_user`. A versão insegura de 2 args foi DROPADA. Call sites atualizados (sync/index.ts, result/route.ts) + redeploy SUCCESS
+- **`set_match_result`**: antes qualquer owner/admin de pool setava resultado GLOBAL. Agora só o perfil de SISTEMA (`_is_sync_user`). Owners comuns na tela "Corrigir resultados" recebem 403 gracioso — resultado vem só do sync oficial (trade-off intencional)
+- Fundação: tabela `system_config` (sync_user_id) + função `_is_sync_user` (valida perfil de sistema por secret_hash). Testado: impostor→forbidden, sync real→ok
+- **Estratégia sem-downtime**: overload da save_scores nova → redeploy → drop da antiga. Sync no ar validado (`checked:8, errors:[]`)
+- **Schema VERSIONADO** (Task #2 ✅): `supabase/schema/00_functions.sql` (18 RPCs), `01_tables.sql` (14 tabelas), `02_policies.sql` (11 RLS) — dump via Management API. Migration real em `supabase/migrations/20260612_sync_hardening.sql`
+- **Padrão Supabase headless** fixado (espelha o Railway): Management API + curl, token no vault. Ver memory/feedback_supabase_headless.md
 
 ## 🚀 NO AR — Railway (2026-06-14 14:12)
 

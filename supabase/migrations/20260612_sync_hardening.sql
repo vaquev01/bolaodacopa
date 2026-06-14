@@ -1,19 +1,22 @@
--- Migration: sync hardening (PENDENTE DE APLICAÇÃO — requer acesso admin/MCP Supabase)
+-- Migration: sync hardening — APLICADA 2026-06-14 via Management API (keli-vault/supabase)
 --
--- Contexto (descoberto na auditoria de 2026-06-11):
---   1. set_match_result aceita QUALQUER owner de pool → qualquer usuário que
---      crie um bolão consegue alterar o resultado GLOBAL de qualquer jogo.
---   2. save_scores não exige credencial nenhuma → qualquer pessoa com a anon
---      key consegue sobrescrever pontuações.
---   Mitigação ativa hoje: o cron de sync (a cada 10 min) reaplica o resultado
---   oficial da football-data e repontua, revertendo vandalismo. Esta migration
---   fecha o buraco de verdade.
+-- Problema (auditoria 2026-06-11):
+--   1. set_match_result aceitava QUALQUER owner/admin de pool → qualquer usuário
+--      que criasse um bolão alterava o resultado GLOBAL de qualquer jogo.
+--   2. save_scores não exigia credencial → qualquer um com a anon key
+--      sobrescrevia pontuações.
+--   Mitigação que existia: o cron de sync (10 min) revertia o vandalismo.
+--   Esta migration fecha as duas brechas: resultado e pontuação só pelo
+--   perfil de SISTEMA (Keli Sync, profiles.id = sync_user_id).
 --
--- Pré-requisito: perfil de sistema já criado (Keychain keli-vault/bolao-sync).
--- Substituir o UUID abaixo se o perfil de sistema mudar.
+-- Estratégia sem-downtime aplicada:
+--   a) cria fundação (_is_sync_user) — aditivo;
+--   b) set_match_result: CREATE OR REPLACE (assinatura igual) trocando o check;
+--   c) save_scores: cria OVERLOAD com auth, mantém a antiga viva até o redeploy
+--      do app usar a nova; depois DROP da antiga (passo 4, no fim).
 
 -- ─────────────────────────────────────────────────────────────
--- 1. Registro do perfil de sistema
+-- 1. Fundação: registro do perfil de sistema + verificador
 -- ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS system_config (
@@ -46,34 +49,61 @@ END;
 $$;
 
 -- ─────────────────────────────────────────────────────────────
--- 2. set_match_result: só o perfil de sistema
---    (owners de pool perdem o poder de editar resultado global;
---     o admin manual da UI continua funcionando apenas para o
---     owner do pool _sistema_sync, i.e. a Keli)
+-- 2. set_match_result: só o perfil de sistema (resultado é global/oficial)
+--    Owners de pool deixam de poder editar resultado. A rota de admin manual
+--    (result/route.ts, user logado) passa a receber 'forbidden' → 403 gracioso.
 -- ─────────────────────────────────────────────────────────────
--- NOTA: reescrever a função existente trocando a checagem de
--- "owner de algum pool" por:
---   IF NOT _is_sync_user(p_user, p_secret) THEN
---     RAISE EXCEPTION 'forbidden';
---   END IF;
--- O corpo original não está versionado neste repo (init schema foi aplicado
--- via MCP) — ao aplicar esta migration, primeiro fazer dump da função:
---   SELECT pg_get_functiondef('set_match_result'::regproc);
--- e versionar aqui o CREATE OR REPLACE completo.
+
+CREATE OR REPLACE FUNCTION public.set_match_result(
+  p_user uuid, p_secret text, p_match uuid,
+  p_h90 integer, p_a90 integer, p_hft integer, p_aft integer, p_pen_winner text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare v_before jsonb;
+begin
+  if not _is_sync_user(p_user, p_secret) then raise exception 'forbidden'; end if;
+  select to_jsonb(m) into v_before from matches m where m.id = p_match;
+  update matches set
+    score_home_90 = p_h90, score_away_90 = p_a90,
+    score_home_ft = coalesce(p_hft, p_h90), score_away_ft = coalesce(p_aft, p_a90),
+    penalty_winner = p_pen_winner, status = 'finished',
+    manual_override = true, updated_at = now()
+  where id = p_match;
+  insert into audit_log (actor_id, action, entity, entity_id, before, after)
+  values (p_user, 'set_result', 'match', p_match, v_before,
+          (select to_jsonb(m) from matches m where m.id = p_match));
+end $function$;
 
 -- ─────────────────────────────────────────────────────────────
--- 3. save_scores: exigir credencial de sistema
+-- 3. save_scores: OVERLOAD com credencial de sistema
+--    A antiga save_scores(p_rows) fica viva até o app novo subir (passo 4).
 -- ─────────────────────────────────────────────────────────────
--- Mesmo procedimento: dump da função atual, adicionar parâmetros
--- p_user UUID, p_secret TEXT e a checagem _is_sync_user no topo.
--- Atualizar os call sites:
---   - src/lib/sync/index.ts (rescoreMatch)
---   - src/app/api/matches/[id]/result/route.ts
+
+CREATE OR REPLACE FUNCTION public.save_scores(p_user uuid, p_secret text, p_rows jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+begin
+  if not _is_sync_user(p_user, p_secret) then raise exception 'forbidden'; end if;
+  insert into prediction_scores (prediction_id, points, breakdown, computed_at)
+  select (r->>'prediction_id')::uuid, (r->>'points')::numeric, r->'breakdown', now()
+  from jsonb_array_elements(p_rows) r
+  on conflict (prediction_id) do update
+    set points = excluded.points, breakdown = excluded.breakdown, computed_at = now();
+end $function$;
 
 -- ─────────────────────────────────────────────────────────────
--- 4. save_bracket_scores: aceitar também o perfil de sistema
+-- 4. DROP da save_scores insegura — rodar SÓ DEPOIS do app novo (que usa a
+--    assinatura de 3 args) estar no ar e o sync confirmado.
 -- ─────────────────────────────────────────────────────────────
--- Trocar o IF NOT EXISTS (owner) por:
---   IF NOT (_is_sync_user(p_user, p_secret) OR EXISTS (
---     SELECT 1 FROM pools WHERE id = p_pool AND owner_id = v_user_id
---   )) THEN RAISE EXCEPTION 'not_owner'; END IF;
+
+DROP FUNCTION IF EXISTS public.save_scores(jsonb);
+
+-- NOTA save_bracket_scores: NÃO alterada. O sync não a usa (bracket é on-read,
+-- bracket-live.ts); ela só é chamada pela rota de admin, que já é barrada no
+-- set_match_result acima. Continua owner-only — sem brecha.

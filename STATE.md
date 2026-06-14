@@ -1,6 +1,28 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 16:50 (v1.14 — GitOps fechado + domínio limpo bolao-da-copa)
+**Atualizado:** 2026-06-14 17:48 (v1.15 — identidade portável nome+senha + premiação informativa + ranking ao vivo)
+
+## 🔑 v1.15 — Login portável + premiação + ranking ao vivo (2026-06-14 17:46)
+
+Victor (na tela do app): "como acesso meu bolão rápido? não deveria ter login/senha por pessoa pra ver resultado, editar jogos e ranking ao vivo?" + depois: "cada membro entra com R$100, premiação 60% campeão / 25% 2º / 15% 3º".
+
+**Identidade portável (nome + senha)** — antes a identidade vivia só num cookie por navegador (perdia ao trocar device/domínio; foi o que o Victor sentiu). Agora:
+- Migration `20260614_portable_identity.sql`: colunas `login_name`(unique lower) + `password_hash` em profiles; RPCs `register_account`, `login_account` (rotaciona secret de sessão), `my_pools`, `set_account_credentials`. Tudo bcrypt via `crypt()/gen_salt('bf')` (mesmo padrão do secret_hash).
+- Rotas: `/api/session/register|login|logout`, `/api/pools/mine`.
+- Frontend: senha no cadastro de criar/entrar (+ toggle "já tenho conta"); **home reconhece** a sessão e lista "seus bolões" + Sair; nova rota `/entrar` (login global nome+senha, aceita `?next=`).
+- **PROVADO no site live**: device A registra → device B SEM cookie loga com nome+senha e recupera o MESMO userId. Senha errada→401, nome duplicado→409. Acesso de qualquer aparelho ✓.
+- Trade-off MVP documentado: login rotaciona o secret → último device logado é o ativo; reabrir device antigo pede novo login.
+
+**Premiação INFORMATIVA** (site nunca processa pagamento — só calcula/exibe; grupo acerta por fora):
+- `ruleset.prize` `{enabled, currency, buy_in, splits:[60,25,15], note?}` (default off, retrocompatível). Helper puro `computePrizePool` (11 testes; sobra de arredondamento vai pro 1º, soma sempre = pote).
+- UI: seção no wizard /criar, card "Premiação" na página do bolão (pote = entrada × membros + fatia de cada colocado), linha no convite WhatsApp, edição no admin.
+- RPC `update_pool_ruleset` (pools tem RLS só de SELECT → UPDATE direto via anon é bloqueado; descoberto e corrigido antes de quebrar em produção).
+
+**Ranking ao vivo**: auto-refresh 30s + on-focus na página do bolão, pulando quando há edição aberta.
+
+**Deploy**: commit `8fcfa0a` → pipeline aplicou as 2 migrations novas (confirmado em `schema_migrations`) → 5 RPCs + 2 colunas verificadas no banco. 154/154 testes, build SUCCESS. Domínio `bolao-da-copa.up.railway.app`.
+
+## v1.14 — GitOps fechado + domínio limpo bolao-da-copa
 
 ## 🌐 Domínio definitivo: bolao-da-copa.up.railway.app (2026-06-14 16:48)
 

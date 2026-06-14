@@ -107,7 +107,10 @@ CREATE TABLE profiles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
   secret_hash text NOT NULL,
+  login_name text,
+  password_hash text,
   created_at timestamp with time zone NOT NULL DEFAULT now());
+-- profiles_login_name_unique: UNIQUE (lower(login_name)) WHERE login_name IS NOT NULL
 
 -- special_bet_scores
 CREATE TABLE special_bet_scores (

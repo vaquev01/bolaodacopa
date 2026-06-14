@@ -7,13 +7,14 @@
 
 ## 1. Como jogar (passo a passo)
 
-1. **Abra o link** que você recebeu (WhatsApp). Não precisa baixar nada nem se cadastrar.
-2. **Digite seu nome** — é assim que você aparece no ranking.
+1. **Abra o link** que você recebeu (WhatsApp). Não precisa baixar nada.
+2. **Crie seu acesso:** escolha um **nome** (é assim que você aparece no ranking) e uma **senha** simples.
+   - Esse nome + senha é o seu login. Com ele você entra **de qualquer aparelho** (celular, computador) e vê/edita os seus palpites — é só tocar em **"Já participo — entrar com nome e senha"**.
 3. **Dê seus palpites:**
    - **Quem passa:** monte o chaveamento — quem se classifica em cada grupo e avança até o campeão.
    - **Placar dos jogos:** (se o seu bolão usar) chute o placar de cada jogo.
-4. **Pronto.** Os resultados entram sozinhos durante a Copa e o ranking atualiza automático.
-5. Acompanhe sua posição na aba **Ranking** a qualquer momento.
+4. **Pronto.** Os resultados entram sozinhos durante a Copa e o ranking atualiza **ao vivo** (sem precisar atualizar a página).
+5. Acompanhe sua posição na aba **Ranking** a qualquer momento, de onde estiver.
 
 ⏰ **Prazo:** você pode mexer nos palpites até **15 minutos antes de cada jogo começar**.
 Os palpites de quem-passa (campeão, classificados) fecham **no 1º jogo da Copa**.
@@ -83,4 +84,21 @@ Se dois participantes terminam com os mesmos pontos, ganha quem:
 
 ---
 
-*Sem dinheiro, sem cadastro, só diversão. Boa sorte! 🍀*
+## 4. Premiação (se o seu bolão tiver)
+
+Alguns bolões valem prêmio em dinheiro entre os amigos. Quando for o caso, o app
+mostra na tela do bolão o **pote** (entrada de cada um × nº de participantes) e
+**quanto cada colocado leva**. Exemplo com entrada de R$100 e 10 pessoas (pote R$1.000):
+
+| Colocação | Fatia | Leva |
+|-----------|-------|------|
+| 🥇 1º (campeão) | 60% | R$600 |
+| 🥈 2º | 25% | R$250 |
+| 🥉 3º | 15% | R$150 |
+
+> O site é **informativo**: ele só calcula e mostra os valores. **Não cobra nem paga
+> nada** — o grupo acerta o dinheiro por fora (Pix etc).
+
+---
+
+*O site não processa dinheiro — premiação é informativa. Boa sorte! 🍀*

@@ -288,7 +288,9 @@ export default function RulesSheet({
           <RuleBlock title="Empate na pontuação">
             <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
               Se duas pessoas terminarem com os mesmos pontos, fica na frente quem tiver mais
-              placares exatos.
+              placares exatos. Persistindo o empate, ganha <strong style={{ color: "var(--color-text-primary)" }}>quem
+              fez os palpites primeiro</strong> — editar depois não muda isso, vale a hora do
+              palpite original.
             </p>
           </RuleBlock>
 

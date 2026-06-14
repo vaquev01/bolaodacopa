@@ -178,10 +178,13 @@ export default async function BolaoPage({ params }: Props) {
     memberNames.set(uid, name);
   }
 
-  // Pontos de palpites de placar por usuário (com breakdown p/ desempate por exatos)
+  // Pontos de palpites de placar por usuário (com breakdown p/ desempate por
+  // exatos, e first_submitted_at p/ desempate por "quem fez antes").
+  // first_submitted_at é IMUTÁVEL no banco — editar o palpite não melhora o
+  // desempate (anti-roubo: não dá pra "fingir" que palpitou cedo).
   const { data: rankingRaw } = await supabase
     .from("predictions")
-    .select("user_id, prediction_scores(points, breakdown), profiles(name)")
+    .select("user_id, first_submitted_at, prediction_scores(points, breakdown), profiles(name)")
     .eq("pool_id", pool.id);
 
   // Pontos especiais por usuário neste pool
@@ -215,16 +218,17 @@ export default async function BolaoPage({ params }: Props) {
     gamePoints: number;
     bracketPoints: number;
     exactCount: number; // desempate: nº de placares exatos
+    lastPickAt: number; // desempate: quando registrou o ÚLTIMO palpite (ms); menor = fez antes
   }
   const rankMap = new Map<string, RankEntry>();
   for (const [uid, name] of Array.from(memberNames.entries())) {
-    rankMap.set(uid, { name, gamePoints: 0, bracketPoints: 0, exactCount: 0 });
+    rankMap.set(uid, { name, gamePoints: 0, bracketPoints: 0, exactCount: 0, lastPickAt: 0 });
   }
 
   function ensure(uid: string, fallbackName: string): RankEntry {
     let e = rankMap.get(uid);
     if (!e) {
-      e = { name: fallbackName, gamePoints: 0, bracketPoints: 0, exactCount: 0 };
+      e = { name: fallbackName, gamePoints: 0, bracketPoints: 0, exactCount: 0, lastPickAt: 0 };
       rankMap.set(uid, e);
     }
     return e;
@@ -249,6 +253,11 @@ export default async function BolaoPage({ params }: Props) {
     if (e.name === "—") e.name = name;
     e.gamePoints += pts;
     e.exactCount += exacts;
+    // "Fez antes" = quando registrou o último dos seus palpites (fechou o cartão).
+    const submittedAt = row.first_submitted_at
+      ? new Date(row.first_submitted_at as string).getTime()
+      : 0;
+    if (!Number.isNaN(submittedAt)) e.lastPickAt = Math.max(e.lastPickAt, submittedAt);
   }
 
   // Adicionar pontos especiais
@@ -266,23 +275,28 @@ export default async function BolaoPage({ params }: Props) {
   const me = rankMap.get(session.userId);
   if (me && (me.name === "—" || !me.name)) me.name = session.name;
 
-  // Ordenação DETERMINÍSTICA: pontos → mais placares exatos → nome (estável).
-  // (Cadeia completa de tiebreakers configuráveis fica para computeStandings.)
+  // Ordenação DETERMINÍSTICA: pontos → mais placares exatos → quem fez antes
+  // (menor lastPickAt) → nome (estável). lastPickAt=0 (nunca palpitou) vai por
+  // último entre os empatados, não na frente.
   const ranking = Array.from(rankMap.entries())
-    .map(([user_id, { name, gamePoints, bracketPoints, exactCount }]) => ({
+    .map(([user_id, { name, gamePoints, bracketPoints, exactCount, lastPickAt }]) => ({
       user_id,
       name,
       points: gamePoints + bracketPoints,
       game_points: gamePoints,
       bracket_points: bracketPoints,
       exact_count: exactCount,
+      last_pick_at: lastPickAt,
     }))
-    .sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.exact_count - a.exact_count ||
-        a.name.localeCompare(b.name, "pt-BR")
-    )
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.exact_count !== a.exact_count) return b.exact_count - a.exact_count;
+      // Quem fez antes ganha. 0 = sem palpite → tratar como +infinito (vai por último).
+      const ta = a.last_pick_at || Number.POSITIVE_INFINITY;
+      const tb = b.last_pick_at || Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+      return a.name.localeCompare(b.name, "pt-BR");
+    })
     .map((r, i) => ({ ...r, position: i + 1 }));
 
   // ── Bracket do usuário atual (se feature habilitada) ─────────────────────

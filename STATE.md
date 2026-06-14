@@ -26,7 +26,7 @@ Camadas que EXISTEM e protegem (confirmadas no código/SQL + provas de sessões 
 1. **Aplicar `20260612_sync_hardening.sql`** — hoje `set_match_result` aceita qualquer dono de pool. ANTES de abrir ao público é obrigatório, senão um membro esperto adultera placar
 2. **Versionar o schema inicial** (Task #2) — `submit_prediction` e a imutabilidade de `first_submitted_at` no edit estão num SQL não versionado; sem o dump não dá pra auditar linha a linha que editar não "reseta" o early-bird
 
-➡️ **"Priorizar quem fez antes"**: o early-bird é o mecanismo, mas exige `days_before` de antecedência (≥4d) — inócuo numa Copa com jogos diários. Opção melhor a decidir com o Victor: desempate por horário de submissão no ranking (quem travou os palpites antes fica na frente). Não implementado ainda — aguarda escolha da métrica
+➡️ **"Priorizar quem fez antes"** — IMPLEMENTADO (Victor escolheu desempate por horário): ranking desempata por pontos → mais exatos → **quem fez os palpites primeiro** (`first_submitted_at`, imutável no banco — editar não melhora o desempate, anti-roubo) → nome. `lastPickAt` = hora do último palpite registrado (fechou o cartão antes ganha); quem nunca palpitou vai por último entre empatados. Texto do RulesSheet atualizado. Prova: lock visto ativo no browser — bracket do bolao-uaoo2 aparece "Travado" (prazo do escopo passou), confirmando o deadline server-side
 
 ## v1.9 — Didático e auto-explicável (2026-06-13, ~10h15)
 

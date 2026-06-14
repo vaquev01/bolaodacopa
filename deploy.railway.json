@@ -1,6 +1,7 @@
 {
   "projectName": "bolao-copa",
   "repo": "vaquev01/bolaodacopa",
+  "branch": "main",
   "migrate": "node scripts/migrate.mjs",
   "vars": {
     "ENABLE_SYNC_CRON": "true",

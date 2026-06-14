@@ -1,6 +1,16 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 15:10 (v1.13 — validação de bracket completo + convite explica regras do bolão)
+**Atualizado:** 2026-06-14 16:40 (v1.14 — GitOps de schema fechado de ponta a ponta + auto-deploy on push)
+
+## ✅ GitOps de schema PROVADO end-to-end (2026-06-14 16:38)
+
+Victor: "vc atualizou todo fluxo de versionamento github railway e supa?". Resposta: agora SIM, provado com marca no banco.
+
+- **Causa raiz do fluxo quebrado**: o serviço Railway estava ligado ao repo (`serviceCreate(source:{repo})`) MAS **sem `deploymentTrigger`** → push NÃO redeployava. Os deploys anteriores eram one-shot do motor. `service.repoTriggers` vinha vazio.
+- **Conserto**: criado `deploymentTrigger` (id `ab719cb5`) via GraphQL (`deploymentTriggerCreate`, branch `main`). Agora push em `vaquev01/bolaodacopa@main` auto-deploya.
+- **Migrate runner GitOps** (`scripts/migrate.mjs`): roda no `preDeployCommand`, aplica `supabase/migrations/*.sql` pendentes via Management API, registra em `schema_migrations`, aborta o deploy (`exit 1`) se falhar. As 2 migrations pré-existentes foram baselined (idempotência).
+- **PROVA**: commit `5a7b1b4` → deploy `148841aa` (auto-disparado) → SUCCESS → preDeploy rodou migrate → `system_config.schema_pipeline_check = 20260614-gitops` apareceu no Supabase + `20260614_gitops_smoke.sql` em `schema_migrations`. Loop `push → build → migrate → Supabase` fechado SEM toque manual e SEM SQL ad-hoc.
+- **Cravado no PADRÃO** (qualquer projeto futuro): motor `railway-deploy.py` passo 3.6 cria o trigger se faltar; manifesto ganhou campo `branch` (default `main`) e `migrate`. Rodado idempotente contra bolao-copa: trigger detectado, preDeploy já gravado, build SUCCESS. Memória `feedback_deploy_first.md` atualizada com o gap.
 
 ## v1.13 — Bracket à prova de incompleto + convite didático (2026-06-14)
 

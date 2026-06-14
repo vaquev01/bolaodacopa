@@ -1,6 +1,15 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 13:25 (v1.12 — rebalance de pontuação "quem passa vale mais" + push pro repo de deploy)
+**Atualizado:** 2026-06-14 14:15 (v1.12 — rebalance "quem passa vale mais" + **DEPLOY NO AR no Railway**)
+
+## 🚀 NO AR — Railway (2026-06-14 14:12)
+
+**URL pública:** https://web-production-7e21b.up.railway.app — build SUCCESS, home 200, `/api/sync-results` 401 (auth ok), cron interno `[sync-cron] ativo` rodando. **Não depende mais do Mac ligado.**
+
+- Projeto Railway `bolao-copa` (id `8303341a-ae85-4390-b534-f7010a8715db`), env production (`dcc78bb7-...`), serviço `web` (`25491f6b-...`) ↔ repo `vaquev01/bolaodacopa` (auto-deploy em push)
+- 7 env vars setadas via API (Supabase URL/anon, football-data, sync uid/secret, cron secret, ENABLE_SYNC_CRON=true) — segredos puxados do Keychain
+- **Padrão de deploy criado e provado** (Victor: "deixa pronto pra subir qualquer projeto como padrão"): motor `~/keli-workspace/.github-templates/railway-deploy.py` (idempotente, headless, GraphQL+curl) + manifesto `deploy.railway.json` na raiz (sem segredos, refs `@vault:`). Token de workspace em `keli-vault/railway`, anon key em `keli-vault/bolao-anon`. Regra no CLAUDE.md ("Deploy-first") + memory/feedback_deploy_first.md
+- ⚠️ Ainda pendente p/ abrir ao público: aplicar `20260612_sync_hardening.sql` (admin Supabase) + decidir domínio definitivo antes de convidar (cookies presos ao domínio). A migration de hardening NÃO bloqueia o site funcionar, só fecha a brecha de adulteração de placar
 
 ## v1.12 — Pontuação "acertar quem passa vale mais, placar é bônus" (2026-06-14)
 

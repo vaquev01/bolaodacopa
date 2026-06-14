@@ -1,0 +1,13 @@
+{
+  "projectName": "bolao-copa",
+  "repo": "vaquev01/bolaodacopa",
+  "vars": {
+    "ENABLE_SYNC_CRON": "true",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://rsippykwiffybjfgljzj.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@vault:bolao-anon",
+    "FOOTBALL_DATA_TOKEN": "@vault:football-data",
+    "SYNC_USER_ID": "@vault:bolao-sync:before-colon",
+    "SYNC_USER_SECRET": "@vault:bolao-sync:after-colon",
+    "CRON_SECRET": "@vault:bolao-cron"
+  }
+}

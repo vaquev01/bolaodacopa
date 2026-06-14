@@ -21,10 +21,10 @@ describe("scorePrediction — exact score", () => {
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 2, score_away_90: 1, score_home_ft: 2, score_away_ft: 1 })
     );
-    expect(result.points).toBe(10); // exact_score=10, group multiplier=1
-    expect(result.breakdown.exact_score).toBe(10);
+    expect(result.points).toBe(8); // exact_score=8, group multiplier=1
+    expect(result.breakdown.exact_score).toBe(8);
     expect(result.breakdown.stage_multiplier).toBe(1);
-    expect(result.breakdown.total).toBe(10);
+    expect(result.breakdown.total).toBe(8);
   });
 
   it("score_basis=final uses ft score, not 90min", () => {
@@ -35,8 +35,8 @@ describe("scorePrediction — exact score", () => {
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 1, score_away_90: 1, score_home_ft: 2, score_away_ft: 1 })
     );
-    expect(result.points).toBe(10);
-    expect(result.breakdown.exact_score).toBe(10);
+    expect(result.points).toBe(8);
+    expect(result.breakdown.exact_score).toBe(8);
   });
 
   it("score_basis=90min uses 90min score, not ft", () => {
@@ -47,8 +47,8 @@ describe("scorePrediction — exact score", () => {
       { home: 1, away: 1 },
       makeMatch({ score_home_90: 1, score_away_90: 1, score_home_ft: 2, score_away_ft: 1 })
     );
-    expect(result.points).toBe(10);
-    expect(result.breakdown.exact_score).toBe(10);
+    expect(result.points).toBe(8);
+    expect(result.breakdown.exact_score).toBe(8);
   });
 
   it("score_basis=90min: predict 2-1 when 90min is 1-1 (NOT exact, just winner hit)", () => {
@@ -84,8 +84,8 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 2, away: 0 },
       makeMatch({ score_home_90: 3, score_away_90: 1 })
     );
-    expect(result.points).toBe(7);
-    expect(result.breakdown.winner_and_diff).toBe(7);
+    expect(result.points).toBe(6);
+    expect(result.breakdown.winner_and_diff).toBe(6);
     expect(result.breakdown.exact_score).toBeUndefined();
   });
 
@@ -96,8 +96,8 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 2, away: 1 },
       makeMatch({ score_home_90: 3, score_away_90: 1 })
     );
-    expect(result.points).toBe(4); // only winner_only
-    expect(result.breakdown.winner_only).toBe(4);
+    expect(result.points).toBe(5); // only winner_only
+    expect(result.breakdown.winner_only).toBe(5);
     expect(result.breakdown.winner_and_diff).toBeUndefined();
   });
 
@@ -108,9 +108,9 @@ describe("scorePrediction — winner_and_diff", () => {
       { home: 1, away: 1 },
       makeMatch({ score_home_90: 2, score_away_90: 2 })
     );
-    // draw_only = 4 (not winner_and_diff, since draws use draw_only)
-    expect(result.points).toBe(4);
-    expect(result.breakdown.draw_only).toBe(4);
+    // draw_only = 5 (not winner_and_diff, since draws use draw_only)
+    expect(result.points).toBe(5);
+    expect(result.breakdown.draw_only).toBe(5);
     expect(result.breakdown.winner_and_diff).toBeUndefined();
   });
 });
@@ -123,8 +123,8 @@ describe("scorePrediction — winner_only", () => {
       { home: 1, away: 0 },
       makeMatch({ score_home_90: 3, score_away_90: 0 })
     );
-    expect(result.points).toBe(4);
-    expect(result.breakdown.winner_only).toBe(4);
+    expect(result.points).toBe(5);
+    expect(result.breakdown.winner_only).toBe(5);
   });
 
   it("awards winner_only for away team win", () => {
@@ -134,8 +134,8 @@ describe("scorePrediction — winner_only", () => {
       { home: 0, away: 1 },
       makeMatch({ score_home_90: 0, score_away_90: 2 })
     );
-    expect(result.points).toBe(4);
-    expect(result.breakdown.winner_only).toBe(4);
+    expect(result.points).toBe(5);
+    expect(result.breakdown.winner_only).toBe(5);
   });
 
   it("returns 0 when wrong winner", () => {
@@ -157,8 +157,8 @@ describe("scorePrediction — draw_only", () => {
       { home: 0, away: 0 },
       makeMatch({ score_home_90: 1, score_away_90: 1 })
     );
-    expect(result.points).toBe(4);
-    expect(result.breakdown.draw_only).toBe(4);
+    expect(result.points).toBe(5);
+    expect(result.breakdown.draw_only).toBe(5);
   });
 
   it("returns 0 when predict draw but actual has winner", () => {
@@ -212,8 +212,8 @@ describe("scorePrediction — goals_one_team (consolação)", () => {
       { home: 3, away: 2 },
       makeMatch({ score_home_90: 3, score_away_90: 1 })
     );
-    expect(result.points).toBe(4);
-    expect(result.breakdown.winner_only).toBe(4);
+    expect(result.points).toBe(5);
+    expect(result.breakdown.winner_only).toBe(5);
     expect(result.breakdown.goals_one_team).toBeUndefined();
   });
 
@@ -253,8 +253,8 @@ describe("scorePrediction — mutually exclusive layers", () => {
       { home: 2, away: 0 },
       makeMatch({ score_home_90: 2, score_away_90: 0 })
     );
-    expect(result.points).toBe(10);
-    expect(result.breakdown.exact_score).toBe(10);
+    expect(result.points).toBe(8);
+    expect(result.breakdown.exact_score).toBe(8);
     expect(result.breakdown.winner_and_diff).toBeUndefined();
   });
 
@@ -265,8 +265,8 @@ describe("scorePrediction — mutually exclusive layers", () => {
       { home: 4, away: 2 },
       makeMatch({ score_home_90: 2, score_away_90: 0 })
     );
-    expect(result.points).toBe(7);
-    expect(result.breakdown.winner_and_diff).toBe(7);
+    expect(result.points).toBe(6);
+    expect(result.breakdown.winner_and_diff).toBe(6);
     expect(result.breakdown.winner_only).toBeUndefined();
   });
 });
@@ -278,7 +278,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "group", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(10);
+    expect(result.points).toBe(8);
     expect(result.breakdown.stage_multiplier).toBe(1);
   });
 
@@ -288,7 +288,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "r32", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(10);
+    expect(result.points).toBe(8);
     expect(result.breakdown.stage_multiplier).toBe(1);
   });
 
@@ -298,7 +298,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "r16", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(15); // 10 * 1.5
+    expect(result.points).toBe(12); // 8 * 1.5
     expect(result.breakdown.stage_multiplier).toBe(1.5);
   });
 
@@ -308,7 +308,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 1, away: 0 },
       makeMatch({ stage: "qf", score_home_90: 3, score_away_90: 0 })
     );
-    expect(result.points).toBe(8); // winner_only=4 * 2
+    expect(result.points).toBe(10); // winner_only=5 * 2
     expect(result.breakdown.stage_multiplier).toBe(2);
   });
 
@@ -318,7 +318,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "sf", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(25); // 10 * 2.5
+    expect(result.points).toBe(20); // 8 * 2.5
     expect(result.breakdown.stage_multiplier).toBe(2.5);
   });
 
@@ -328,7 +328,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "third", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(10); // 10 * 1
+    expect(result.points).toBe(8); // 8 * 1
     expect(result.breakdown.stage_multiplier).toBe(1);
   });
 
@@ -338,7 +338,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "final", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(30); // 10 * 3
+    expect(result.points).toBe(24); // 8 * 3
     expect(result.breakdown.stage_multiplier).toBe(3);
   });
 
@@ -352,7 +352,7 @@ describe("scorePrediction — stage multipliers", () => {
       { home: 2, away: 1 },
       makeMatch({ stage: "final", score_home_90: 2, score_away_90: 1 })
     );
-    expect(result.points).toBe(50); // 10 * 5
+    expect(result.points).toBe(40); // 8 * 5
     expect(result.breakdown.stage_multiplier).toBe(5);
   });
 });

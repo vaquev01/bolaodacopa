@@ -73,7 +73,9 @@ export default function CriarPage() {
     winnerPickPoints: DEFAULT_RULESET.scoring.winner_pick,
     winnerExactBonus: DEFAULT_RULESET.scoring.winner_exact_bonus,
     specialsExactEnabled: true,
-    specialsExactPoints: 10,
+    // Placar exato no modo classificação = bônus (metade do peso de antes).
+    // O que mais vale é acertar quem passa/avança (pontos do bracket).
+    specialsExactPoints: 5,
     exactScore: DEFAULT_RULESET.scoring.exact_score,
     winnerOnly: DEFAULT_RULESET.scoring.winner_only,
     winnerAndDiff: DEFAULT_RULESET.scoring.winner_and_diff,

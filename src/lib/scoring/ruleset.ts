@@ -4,16 +4,21 @@ import { z } from "zod";
 // Schema Zod — Ruleset v1
 // ────────────────────────────────────────────────────────────
 
+// Filosofia: ACERTAR QUEM PASSA/GANHA é o que mais vale; o placar exato é um
+// BÔNUS por cima, não a maior recompensa (decisão do Victor, 2026-06-14).
 const ScoringSchema = z.object({
-  exact_score: z.number().default(10),
-  winner_and_diff: z.number().default(7),
-  winner_only: z.number().default(4),
-  draw_only: z.number().default(4),
+  // Modo placar — cravou tudo (base "só vencedor" + um incremento pequeno).
+  exact_score: z.number().default(8),
+  winner_and_diff: z.number().default(6),
+  // Acertar quem ganha é a base forte do jogo.
+  winner_only: z.number().default(5),
+  draw_only: z.number().default(5),
   // Consolação: errou o vencedor mas acertou os gols de um dos times. 0 = desligada.
   goals_one_team: z.number().default(1),
-  // Modo "só vencedor": pontos por cravar o 1X2 (casa/empate/fora).
-  winner_pick: z.number().default(3),
-  // Modo "só vencedor": bônus opcional por também cravar o placar. 0 = desligado.
+  // Modo "só vencedor": acertar o 1X2 (casa/empate/fora) é a recompensa principal.
+  winner_pick: z.number().default(8),
+  // Modo "só vencedor": bônus por também cravar o placar — vale MENOS que acertar
+  // quem ganha. 0 = desligado.
   winner_exact_bonus: z.number().default(5),
 });
 
@@ -71,17 +76,19 @@ const SpecialBetsSchema = z.object({
 });
 
 // v1.1 — Bracket pré-Copa (advance predictions)
+// Pesos altos: prever QUEM PASSA e avança é o coração do bolão (vale muito mais
+// que cravar o placar de um jogo, que é só bônus).
 const BracketPointsSchema = z.object({
-  group_qualified: z.number().default(2),
+  group_qualified: z.number().default(3),
   group_position_exact: z.number().default(1),
-  r16: z.number().default(2),
-  qf: z.number().default(3),
-  sf: z.number().default(5),
-  final: z.number().default(8),
+  r16: z.number().default(3),
+  qf: z.number().default(5),
+  sf: z.number().default(8),
+  final: z.number().default(12),
   fourth_place: z.number().default(4),
-  third_place: z.number().default(8),
-  runner_up: z.number().default(10),
-  champion: z.number().default(25),
+  third_place: z.number().default(10),
+  runner_up: z.number().default(15),
+  champion: z.number().default(30),
 });
 
 const AdvancePredictionsSchema = z.object({

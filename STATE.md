@@ -1,6 +1,17 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-13 10:35 (v1.10 — pronto pra Railway + auditoria de timing/anti-roubo)
+**Atualizado:** 2026-06-14 13:25 (v1.12 — rebalance de pontuação "quem passa vale mais" + push pro repo de deploy)
+
+## v1.12 — Pontuação "acertar quem passa vale mais, placar é bônus" (2026-06-14)
+
+Victor: "quero que a pontuação maior seja para acertar quem passa; o placar deve ser bônus." Escolheu o perfil **Meio-termo** (quem-passa sobe forte, placar continua valendo mas como bônus = metade do que valia).
+
+- **Novos defaults do `ScoringSchema`** (modo placar): exato `10→8` (bônus), vencedor+saldo `7→6`, **vencedor `4→5`** e **empate `4→5`** (acertar quem ganha virou a base forte), consolação `1` (intocada). Modo só-vencedor: `winner_pick 3→8` (acertar o 1X2 é a recompensa principal), `winner_exact_bonus 5` (cravar placar vale MENOS que acertar quem ganha)
+- **Novos defaults do `BracketPointsSchema`** (quem passa/avança = coração do bolão): classificou `2→3`, oitavas `2→3`, quartas `3→5`, semis `5→8`, final `8→12`, 3º `8→10`, vice `10→15`, **campeão `25→30`**; 4º `4` e posição-exata `+1` intocados
+- `criar/page.tsx`: `specialsExactPoints 10→5` (placar como bônus no modo classificação). Todo o resto do wizard já puxava de `DEFAULT_RULESET.*` → propaga sozinho. `RulesSheet` lê o ruleset real → reflete os números novos sem mudança de código
+- **Retrocompatível**: `parseRuleset` só preenche defaults de campos AUSENTES → pools já criados mantêm o ruleset salvo; só pools NOVOS herdam a nova régua
+- **Verificação geral pré-deploy**: `next build` limpo (12 rotas), **143/143 testes verdes** (27 asserções de teste que fixavam os números antigos foram realinhadas — não eram bugs), tsc válido, zero número de pontos hardcoded na UI (toda a superfície deriva do ruleset)
+- **Repo de deploy**: código publicado em `github.com/vaquev01/bolaodacopa` (remote `deploy`) — repo que o Victor conecta no Railway
 
 ## v1.10 — Deploy-ready (Railway) + auditoria anti-roubo (2026-06-13, ~10h30)
 
@@ -253,3 +264,7 @@ Top 3 recomendados: **openfootball/worldcup.json** (CC0, fixtures 2026 auto-atua
 - Versionar schema init (dump via MCP)
 - Considerar Supabase Realtime no ranking
 - Cross-check openfootball/worldcup.json como 2ª fonte do sync (hoje: football-data only)
+
+## Pipeline
+- Estágio: brainstorm ✅ → spec ✅ → plan ✅ → tdd ⏳ → verify ⬜
+- Atualizado: 2026-06-14

@@ -7,11 +7,11 @@ describe("DEFAULT_RULESET", () => {
   });
 
   it("has correct scoring tiers", () => {
-    expect(DEFAULT_RULESET.scoring.exact_score).toBe(10);
-    expect(DEFAULT_RULESET.scoring.winner_and_diff).toBe(7);
-    expect(DEFAULT_RULESET.scoring.winner_only).toBe(4);
+    expect(DEFAULT_RULESET.scoring.exact_score).toBe(8);
+    expect(DEFAULT_RULESET.scoring.winner_and_diff).toBe(6);
+    expect(DEFAULT_RULESET.scoring.winner_only).toBe(5);
     expect(DEFAULT_RULESET.scoring.goals_one_team).toBe(1);
-    expect(DEFAULT_RULESET.scoring.draw_only).toBe(4);
+    expect(DEFAULT_RULESET.scoring.draw_only).toBe(5);
   });
 
   it("has correct stage multipliers", () => {
@@ -111,10 +111,10 @@ describe("parseRuleset", () => {
   it("falls back to default for missing scoring fields", () => {
     const json = { version: 1 };
     const ruleset = parseRuleset(json);
-    expect(ruleset.scoring.exact_score).toBe(10);
-    expect(ruleset.scoring.winner_and_diff).toBe(7);
-    expect(ruleset.scoring.winner_only).toBe(4);
-    expect(ruleset.scoring.draw_only).toBe(4);
+    expect(ruleset.scoring.exact_score).toBe(8);
+    expect(ruleset.scoring.winner_and_diff).toBe(6);
+    expect(ruleset.scoring.winner_only).toBe(5);
+    expect(ruleset.scoring.draw_only).toBe(5);
   });
 
   it("falls back to default stage_multipliers when missing", () => {
@@ -171,17 +171,17 @@ describe("parseRuleset", () => {
     const json = { scoring: { exact_score: 20 } };
     const ruleset = parseRuleset(json);
     expect(ruleset.scoring.exact_score).toBe(20);
-    expect(ruleset.scoring.winner_and_diff).toBe(7);
-    expect(ruleset.scoring.winner_only).toBe(4);
+    expect(ruleset.scoring.winner_and_diff).toBe(6);
+    expect(ruleset.scoring.winner_only).toBe(5);
   });
 
   it("handles null input gracefully", () => {
     const ruleset = parseRuleset(null);
-    expect(ruleset.scoring.exact_score).toBe(10);
+    expect(ruleset.scoring.exact_score).toBe(8);
   });
 
   it("handles non-object input gracefully", () => {
     const ruleset = parseRuleset("invalid");
-    expect(ruleset.scoring.exact_score).toBe(10);
+    expect(ruleset.scoring.exact_score).toBe(8);
   });
 });

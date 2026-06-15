@@ -1,6 +1,15 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-14 17:48 (v1.15 — identidade portável nome+senha + premiação informativa + ranking ao vivo)
+**Atualizado:** 2026-06-15 07:05 (v1.16 — ranking mostra o nome real de todos)
+
+## 🏷️ v1.16 — Ranking exibia "—" no lugar dos nomes (2026-06-15 07:05)
+
+Victor (print do ranking): "a maioria esqueceu de colocar o nome". **Diagnóstico real, com prova no banco: premissa invertida** — TODO mundo tinha nome (`profiles.name` é NOT NULL; os 4 do "Bolão do Vaqueirão" = Victor/Marlon/Paulo/João). O bug era de **visibilidade**: RLS ligada em `profiles` SEM policy de SELECT → a chave anon (o servidor usa, identidade é por cookie e não Supabase Auth) não lia o nome de ninguém pelo join; só o nome próprio aparecia (vinha do cookie). Um balão "coloque seu nome" não resolveria nada e ainda incomodaria quem já tem nome.
+
+**Fix (exposição mínima, zero dado tocado):**
+- Migration `20260615_ranking_member_names.sql`: RPC `pool_member_names(p_pool)` SECURITY DEFINER que devolve APENAS `(user_id, name)` dos membros ativos. NÃO se abriu policy SELECT genérica em profiles (seria row-level e vazaria `secret_hash`/`password_hash`).
+- `b/[slug]/page.tsx`: monta `memberNames` via o RPC em vez do join bloqueado pela RLS; rede de segurança mantém todo membro ativo no mapa.
+- tsc limpo, build SUCCESS. Deploy via push `main` (commit `88c2667`).
 
 ## 🔑 v1.15 — Login portável + premiação + ranking ao vivo (2026-06-14 17:46)
 

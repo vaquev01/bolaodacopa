@@ -164,18 +164,23 @@ export default async function BolaoPage({ params }: Props) {
   // só preencheu o bracket (sem palpite de placar) ou ainda não pontuou.
   const { data: membersRaw } = await supabase
     .from("pool_members")
-    .select("user_id, profiles(name)")
+    .select("user_id")
     .eq("pool_id", pool.id)
     .eq("status", "active");
 
+  // Nomes via RPC SECURITY DEFINER: a RLS de `profiles` bloqueia o join direto
+  // com a chave anon (identidade é por cookie, não Supabase Auth), então sem
+  // isso TODO mundo — menos você — aparecia como "—". O RPC devolve só (id,
+  // name), nunca os hashes. Ver migration 20260615_ranking_member_names.sql.
+  const { data: nameRows } = await supabase.rpc("pool_member_names", { p_pool: pool.id });
   const memberNames = new Map<string, string>();
+  for (const row of (nameRows ?? []) as { user_id: string; name: string }[]) {
+    memberNames.set(row.user_id, row.name ?? "—");
+  }
+  // Rede de segurança: todo membro ativo existe no mapa mesmo se o RPC falhar.
   for (const row of membersRaw ?? []) {
     const uid = row.user_id as string;
-    const profilesRaw = row.profiles as unknown;
-    const name = Array.isArray(profilesRaw)
-      ? ((profilesRaw[0] as { name: string } | undefined)?.name ?? "—")
-      : ((profilesRaw as { name: string } | null)?.name ?? "—");
-    memberNames.set(uid, name);
+    if (!memberNames.has(uid)) memberNames.set(uid, "—");
   }
 
   // Pontos de palpites de placar por usuário (com breakdown p/ desempate por

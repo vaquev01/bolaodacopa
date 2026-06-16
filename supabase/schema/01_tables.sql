@@ -26,6 +26,17 @@ CREATE TABLE bracket_scores (
   breakdown jsonb NOT NULL DEFAULT '{}'::jsonb,
   computed_at timestamp with time zone DEFAULT now());
 
+-- comments (migration 20260616_comments.sql) — resenha: mural ('pool') + jogo a jogo ('match')
+CREATE TABLE comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pool_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  scope text NOT NULL,            -- 'match' | 'pool'
+  match_id uuid,
+  body text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now());
+-- comments_scope_chk: scope IN ('match','pool'); comments_match_chk: (scope='match') = (match_id IS NOT NULL)
+
 -- matches
 CREATE TABLE matches (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

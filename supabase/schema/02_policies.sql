@@ -6,6 +6,9 @@
 -- bracket_scores.bracket_scores_read [SELECT]
 --   USING: true
 
+-- comments — RLS LIGADA, SEM policy (deny-by-default p/ anon).
+--   Acesso só via RPCs SECURITY DEFINER post_comment/list_comments/delete_comment.
+
 -- matches.matches_read [SELECT]
 --   USING: true
 

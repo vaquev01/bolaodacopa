@@ -479,3 +479,81 @@ begin
 end $function$
 ;
 
+
+-- --- comments: post/list/delete (migration 20260616_comments.sql) ---
+CREATE OR REPLACE FUNCTION public.delete_comment(p_user uuid, p_secret text, p_comment uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare v_pool uuid; v_author uuid; v_owner uuid;
+begin
+  if not _auth(p_user, p_secret) then raise exception 'unauthorized'; end if;
+  select pool_id, user_id into v_pool, v_author from comments where id = p_comment;
+  if v_pool is null then raise exception 'not_found'; end if;
+  select owner_id into v_owner from pools where id = v_pool;
+  if p_user <> v_author and p_user <> v_owner then raise exception 'forbidden'; end if;
+  delete from comments where id = p_comment;
+  return true;
+end $function$
+
+
+CREATE OR REPLACE FUNCTION public.list_comments(p_user uuid, p_secret text, p_pool uuid, p_scope text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare v_owner uuid;
+begin
+  if not _auth(p_user, p_secret) then raise exception 'unauthorized'; end if;
+  if not exists (
+    select 1 from pool_members
+    where pool_id = p_pool and user_id = p_user and status = 'active'
+  ) then raise exception 'not_member'; end if;
+
+  select owner_id into v_owner from pools where id = p_pool;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', c.id,
+      'user_id', c.user_id,
+      'name', coalesce(pr.name, '—'),
+      'scope', c.scope,
+      'match_id', c.match_id,
+      'body', c.body,
+      'created_at', c.created_at,
+      'can_delete', (c.user_id = p_user or v_owner = p_user)
+    ) order by c.created_at asc)
+    from comments c
+    left join profiles pr on pr.id = c.user_id
+    where c.pool_id = p_pool
+      and (p_scope is null or c.scope = p_scope)
+  ), '[]'::jsonb);
+end $function$
+
+
+CREATE OR REPLACE FUNCTION public.post_comment(p_user uuid, p_secret text, p_pool uuid, p_scope text, p_match uuid, p_body text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare v_id uuid; v_body text := trim(p_body);
+begin
+  if not _auth(p_user, p_secret) then raise exception 'unauthorized'; end if;
+  if not exists (
+    select 1 from pool_members
+    where pool_id = p_pool and user_id = p_user and status = 'active'
+  ) then raise exception 'not_member'; end if;
+  if p_scope not in ('match', 'pool') then raise exception 'invalid_scope'; end if;
+  if (p_scope = 'match') <> (p_match is not null) then raise exception 'invalid_match'; end if;
+  if length(coalesce(v_body, '')) < 1 then raise exception 'empty_body'; end if;
+  if length(v_body) > 280 then raise exception 'body_too_long'; end if;
+
+  insert into comments (pool_id, user_id, scope, match_id, body)
+  values (p_pool, p_user, p_scope, p_match, v_body)
+  returning id into v_id;
+  return v_id;
+end $function$

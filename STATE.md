@@ -1,6 +1,19 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-15 07:05 (v1.16 — ranking mostra o nome real de todos)
+**Atualizado:** 2026-06-16 20:42 (v1.17 — Galera compara palpites + Resenha/comentários)
+
+## 🗣️ v1.17 — Aba "Galera" (comparar palpites) + Resenha (comentários) (2026-06-16 20:42)
+
+Victor: "inclua possibilidade de ver apostas dos outros e comparar com as suas (caso o bolão esteja fechado para edições — torna mais interativo e competitivo) e também fazer comentários jogo a jogo ou em alguma classificação."
+
+**Insight que reduziu a superfície**: o sigilo "só revela pós-fechamento" JÁ existia no banco — a RLS `predictions_read` só retorna palpites de jogos com `kickoff_at <= now()`. Então "ver as apostas dos outros" não precisou de RPC novo; faltava só a UI. Só os comentários eram schema novo.
+
+- **Aba "Galera"** (`GaleraGrid.tsx`): grade **jogo × pessoa** revelando o palpite de todo mundo assim que cada jogo começa (Você fixado no topo, ✓/+pts em verde quando pontuou). `page.tsx` busca `predictions` de todos (a RLS faz o filtro por jogo) + nomes via `pool_member_names`. Tocar no cabeçalho de um jogo abre sheet com a comparação lado a lado **+ a resenha daquele jogo**. Empty state honesto: "ninguém vê o seu, nem você vê o dos outros" até o jogo rolar. Só aparece em bolão com palpites de placar (não em classificação pura).
+- **Resenha (comentários)**: tabela `comments` (`scope` `'pool'`=mural | `'match'`=jogo) + RPCs `post_comment`/`list_comments`/`delete_comment` (SECURITY DEFINER, `_auth`+membership, body 1..280, autor OU dono do pool apagam — moderação). RLS deny-by-default (mesma estratégia de profiles). **Mural geral** na aba Ranking; **thread por jogo** no sheet da Galera. Rota `/api/comments` POST+DELETE. Componente `Comments.tsx` reutilizável (Enter envia, ✕ apaga).
+- **Migration** `20260616_comments.sql` (idempotente). Schema versionado atualizado (dump fiel das 3 RPCs + tabela + nota de RLS).
+- **Verificação**: tsc limpo, **154/154 testes**, `next build` SUCCESS (rota `/api/comments` + `/b/[slug]` 27.8 kB). **Deploy GitOps PROVADO**: push `main` (commit `84d884f`) → deploy Railway `499b5b6d` **SUCCESS** → preDeploy aplicou a migration (`schema_migrations.20260616_comments.sql` @ 23:40:45 UTC) → 3 RPCs + tabela confirmadas no banco, home **HTTP 200**. Smoke de autorização: `post_comment`/`list_comments` com credencial inválida → `unauthorized`, zero linha inserida.
+
+## 🏷️ v1.16 — Ranking exibia "—" no lugar dos nomes (2026-06-15 07:05)
 
 ## 🏷️ v1.16 — Ranking exibia "—" no lugar dos nomes (2026-06-15 07:05)
 

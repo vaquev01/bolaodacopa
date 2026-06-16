@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { Match, Prediction, PredictionScore, StandingRow } from "@/lib/types";
+import type { Match, Prediction, PredictionScore, StandingRow, PoolMemberLite, RevealedPrediction, Comment } from "@/lib/types";
 import type { Ruleset } from "@/lib/scoring";
 import { computePrizePool, formatPrize } from "@/lib/scoring";
 import { formatKickoff, deadlineLabel, deadlineUrgency, getFlag, stageLabel } from "@/lib/utils";
 import SpecialBetsCard from "./SpecialBetsCard";
 import BracketCard from "./BracketCard";
 import RulesSheet from "./RulesSheet";
+import GaleraGrid from "./GaleraGrid";
+import Comments from "./Comments";
 
 interface Pool {
   id: string;
@@ -64,9 +66,12 @@ interface Props {
   bracketLockAt?: string | null;
   bracketLocked?: boolean;
   memberCount?: number;
+  members?: PoolMemberLite[];
+  revealedPredictions?: RevealedPrediction[];
+  comments?: Comment[];
 }
 
-type Tab = "palpites" | "ranking" | "bracket";
+type Tab = "palpites" | "galera" | "ranking" | "bracket";
 
 export default function BolaoClient({
   pool,
@@ -91,6 +96,9 @@ export default function BolaoClient({
   bracketLockAt = null,
   bracketLocked = false,
   memberCount = 0,
+  members = [],
+  revealedPredictions = [],
+  comments = [],
 }: Props) {
   const router = useRouter();
   // Modo classificação: tab default é bracket (se disponível), senão palpites
@@ -186,15 +194,21 @@ export default function BolaoClient({
     [pool.id]
   );
 
+  // Aba "Galera" (comparar palpites) só faz sentido em bolão com palpites de
+  // placar — em classificação pura (specials_only) não há jogos pra comparar.
+  const galeraTab: Tab[] = isSpecialsOnly ? [] : ["galera"];
   // Modo classificação: Bracket primeiro, Placares (bônus) por último
   const tabs: Tab[] = isClassification && bracketEnabled
-    ? ["bracket", "ranking", "palpites"]
-    : ["palpites", "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])];
+    ? ["bracket", "ranking", ...galeraTab, "palpites"]
+    : ["palpites", ...galeraTab, "ranking", ...(bracketEnabled ? ["bracket" as Tab] : [])];
   const tabLabels: Record<Tab, string> = {
     palpites: isClassification ? "Placares (bônus)" : "Palpites",
+    galera: "Galera",
     ranking: "Ranking",
     bracket: "Bracket",
   };
+
+  const poolComments = comments.filter((c) => c.scope === "pool");
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "var(--color-bg-primary)" }}>
@@ -345,6 +359,17 @@ export default function BolaoClient({
             )}
           </div>
         )}
+        {tab === "galera" && !isSpecialsOnly && (
+          <GaleraGrid
+            poolId={pool.id}
+            matches={matches}
+            members={members}
+            revealedPredictions={revealedPredictions}
+            comments={comments}
+            currentUserId={currentUserId}
+            ruleset={ruleset}
+          />
+        )}
         {tab === "ranking" && (
           <div className="flex flex-col">
             {ruleset.prize?.enabled && (
@@ -360,6 +385,22 @@ export default function BolaoClient({
               bracketEnabled={bracketEnabled}
               onShowRules={() => setShowRules(true)}
             />
+            {/* Mural do bolão — resenha geral da classificação */}
+            <div className="px-4 pt-2 pb-4">
+              <div className="max-w-lg mx-auto">
+                <h2 className="text-[15px] font-bold mb-2 mt-2" style={{ color: "var(--color-text-primary)" }}>
+                  Resenha do bolão 🗣️
+                </h2>
+                <Comments
+                  poolId={pool.id}
+                  scope="pool"
+                  comments={poolComments}
+                  currentUserId={currentUserId}
+                  placeholder="Provoca a galera…"
+                  emptyLabel="Abre a resenha — manda a primeira."
+                />
+              </div>
+            </div>
           </div>
         )}
         {tab === "bracket" && bracketEnabled && (

@@ -61,6 +61,30 @@ export interface PredictionScore {
   computed_at?: string;
 }
 
+export interface PoolMemberLite {
+  user_id: string;
+  name: string;
+}
+
+/** Palpite de placar revelado (jogo já iniciado) para a grade comparativa. */
+export interface RevealedPrediction {
+  user_id: string;
+  match_id: string;
+  payload: { home?: number | null; away?: number | null; winner?: string };
+  points: number | null;
+}
+
+export interface Comment {
+  id: string;
+  user_id: string;
+  name: string;
+  scope: "match" | "pool";
+  match_id: string | null;
+  body: string;
+  created_at: string;
+  can_delete: boolean;
+}
+
 export interface StandingRow {
   user_id: string;
   name: string;

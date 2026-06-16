@@ -329,6 +329,49 @@ export default async function BolaoPage({ params }: Props) {
 
   const memberCount = (membersRaw ?? []).length;
 
+  // ── Palpites revelados (aba "Galera") ────────────────────────────────────
+  // A RLS de `predictions` só retorna linhas cujo jogo já começou
+  // (kickoff_at <= now()) — o sigilo por jogo é garantido no banco, não aqui.
+  // Junta o palpite de TODO mundo com o nome (memberNames) p/ a grade comparativa.
+  const { data: revealedRaw } = isSpecialsOnly
+    ? { data: [] }
+    : await supabase
+        .from("predictions")
+        .select("user_id, match_id, payload, prediction_scores(points)")
+        .eq("pool_id", pool.id);
+  const revealedPredictions = (revealedRaw ?? []).map((row) => {
+    const sc = row.prediction_scores as unknown;
+    const points = Array.isArray(sc)
+      ? ((sc[0] as { points: number } | undefined)?.points ?? null)
+      : ((sc as { points: number } | null)?.points ?? null);
+    return {
+      user_id: row.user_id as string,
+      match_id: row.match_id as string,
+      payload: row.payload as { home?: number | null; away?: number | null; winner?: string },
+      points,
+    };
+  });
+
+  // Membros (id+nome) para as linhas da grade e autoria dos comentários.
+  const members = Array.from(memberNames.entries()).map(([user_id, name]) => ({ user_id, name }));
+
+  // ── Resenha (comentários: mural + jogo a jogo) ───────────────────────────
+  const { data: commentsRaw } = await supabase.rpc("list_comments", {
+    p_user: session.userId,
+    p_secret: session.secret,
+    p_pool: pool.id,
+  });
+  const comments = (commentsRaw ?? []) as {
+    id: string;
+    user_id: string;
+    name: string;
+    scope: "match" | "pool";
+    match_id: string | null;
+    body: string;
+    created_at: string;
+    can_delete: boolean;
+  }[];
+
   return (
     <BolaoClient
       pool={pool}
@@ -353,6 +396,9 @@ export default async function BolaoPage({ params }: Props) {
       bracketLockAt={bracketLockAt}
       bracketLocked={bracketLocked}
       memberCount={memberCount}
+      members={members}
+      revealedPredictions={revealedPredictions}
+      comments={comments}
     />
   );
 }

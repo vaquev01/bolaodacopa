@@ -11,6 +11,7 @@ import BracketCard from "./BracketCard";
 import RulesSheet from "./RulesSheet";
 import GaleraGrid from "./GaleraGrid";
 import Comments from "./Comments";
+import MegaBracket, { type BracketEntry } from "./MegaBracket";
 
 interface Pool {
   id: string;
@@ -69,6 +70,7 @@ interface Props {
   members?: PoolMemberLite[];
   revealedPredictions?: RevealedPrediction[];
   comments?: Comment[];
+  allBrackets?: BracketEntry[];
 }
 
 type Tab = "palpites" | "galera" | "ranking" | "bracket";
@@ -99,6 +101,7 @@ export default function BolaoClient({
   members = [],
   revealedPredictions = [],
   comments = [],
+  allBrackets = [],
 }: Props) {
   const router = useRouter();
   // Modo classificação: tab default é bracket (se disponível), senão palpites
@@ -405,6 +408,12 @@ export default function BolaoClient({
         )}
         {tab === "bracket" && bracketEnabled && (
           <div className="px-4 py-3">
+            {/* Mega chaveamento — comparação de todos, só com o bolão fechado */}
+            {bracketLocked && allBrackets.length > 1 && (
+              <div className="max-w-lg lg:max-w-[1400px] mx-auto mb-5 pb-5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <MegaBracket allBrackets={allBrackets} currentUserId={currentUserId} />
+              </div>
+            )}
             {/* Desktop: largura total até 1400px; mobile: coluna única sem alteração */}
             <div className="max-w-lg lg:max-w-[1400px] mx-auto">
               <BracketCard

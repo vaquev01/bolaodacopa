@@ -308,6 +308,8 @@ export default async function BolaoPage({ params }: Props) {
   let myBracket: Record<string, unknown> | null = null;
   let bracketLockAt: string | null = null;
   let bracketLocked = false;
+  // Brackets de TODOS (só vem do RPC quando o bolão fechou) — p/ o mega chaveamento.
+  let allBrackets: { user_id: string; name: string; payload: Record<string, unknown>; score?: number | null }[] = [];
 
   if (bracketEnabled) {
     const { data: bracketRpc } = await supabase.rpc("get_pool_brackets", {
@@ -320,10 +322,17 @@ export default async function BolaoPage({ params }: Props) {
         my_bracket?: { payload: Record<string, unknown> };
         lock_at?: string;
         locked?: boolean;
+        all_brackets?: { user_id: string; payload: Record<string, unknown>; score?: number | null }[] | null;
       };
       myBracket = b.my_bracket?.payload ?? null;
       bracketLockAt = b.lock_at ?? null;
       bracketLocked = b.locked ?? false;
+      allBrackets = (b.all_brackets ?? []).map((x) => ({
+        user_id: x.user_id,
+        name: memberNames.get(x.user_id) ?? "—",
+        payload: x.payload,
+        score: x.score ?? null,
+      }));
     }
   }
 
@@ -399,6 +408,7 @@ export default async function BolaoPage({ params }: Props) {
       members={members}
       revealedPredictions={revealedPredictions}
       comments={comments}
+      allBrackets={allBrackets}
     />
   );
 }

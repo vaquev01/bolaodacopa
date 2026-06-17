@@ -1,6 +1,18 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-16 20:42 (v1.17 — Galera compara palpites + Resenha/comentários)
+**Atualizado:** 2026-06-16 21:00 (v1.18 — mega chaveamento comparando o bracket de todos)
+
+## 🗺️ v1.18 — Mega chaveamento: compara o bracket de todos (2026-06-16 21:00)
+
+Victor: "este bolão já é o oficial de verdade. Mostrar a resenha + (como está fechado) um mega chaveamento comparando os palpites de mata-mata de todos os participantes."
+
+- **Bolão oficial confirmado**: `bolao-do-vaqueirao-i8pne2ce` (8 membros, 6 brackets, 64 palpites de placar, scope custom **specials_plus**, **FECHADO** — lock 16/06 19:00 UTC). Os outros pools são testes de 1 membro.
+- **`MegaBracket.tsx`**: na aba Bracket, com o bolão fechado e >1 cartão, mostra no topo: (1) **consenso do campeão** (cada seleção → quem apostou nela, com contagem ×N) e (2) **grade comparativa** Campeão/Vice/Semifinais por participante (quartas expansível), Você fixado no topo. Dados vêm de `all_brackets` — que o RPC `get_pool_brackets` **já retornava** quando `locked` (zero mudança de banco); o `page.tsx` só passou a capturar + mapear nomes via `memberNames`.
+- **PROVADO no ar** (Chrome real, screenshot): consenso real → 🇧🇷 Brasil 3× (Gustavo/João/Matheus), 🇪🇸 Espanha 2× (Victor/Dida), 🇩🇪 Alemanha 1× (Paulo); grade com o caminho de cada um até o título renderizada.
+- **Resenha**: UI no ar (mural na aba Ranking). Vazia — nenhum comentário real ainda; NÃO postei "teste" no grupo oficial (decisão: comentar é ação do Victor). Integridade já provada no v1.17 (auth nega credencial inválida).
+- tsc limpo, **154/154 testes**, build SUCCESS. Deploy GitOps: commit `cde3dc7` → Railway **SUCCESS**, home 200. Sem migration (feature de leitura).
+
+## 🗣️ v1.17 — Aba "Galera" (comparar palpites) + Resenha (comentários) (2026-06-16 20:42)
 
 ## 🗣️ v1.17 — Aba "Galera" (comparar palpites) + Resenha (comentários) (2026-06-16 20:42)
 

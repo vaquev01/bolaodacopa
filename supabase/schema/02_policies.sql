@@ -12,6 +12,8 @@
 -- matches.matches_read [SELECT]
 --   USING: true
 
+-- narrator_events — RLS LIGADA, SEM policy (acesso só via RPC narrator_post SECURITY DEFINER).
+
 -- pool_members.members_read [SELECT]
 --   USING: true
 

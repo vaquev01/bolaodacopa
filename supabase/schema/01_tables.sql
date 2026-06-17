@@ -37,6 +37,13 @@ CREATE TABLE comments (
   created_at timestamptz NOT NULL DEFAULT now());
 -- comments_scope_chk: scope IN ('match','pool'); comments_match_chk: (scope='match') = (match_id IS NOT NULL)
 
+-- narrator_events (migration 20260616_narrator.sql) — ledger de idempotência do ADM Narrador
+CREATE TABLE narrator_events (
+  pool_id uuid NOT NULL,
+  event_key text NOT NULL,         -- kickoff:<match> | ft:<match> | leader:<user> | daily:<YYYYMMDD>
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (pool_id, event_key));
+
 -- matches
 CREATE TABLE matches (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

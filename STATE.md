@@ -1,6 +1,20 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-16 21:00 (v1.18 — mega chaveamento comparando o bracket de todos)
+**Atualizado:** 2026-06-16 21:45 (v1.19 — ADM Narrador: zoeira automática a cada jogo)
+
+## 🎙️ v1.19 — ADM "Narrador": zoeira automática no mural (2026-06-16 21:45)
+
+Victor: "coloque um adm zoando a galera e agitando a cada jogo." Escolhas: persona **Narrador raiz** (locução dramática), motor **templates grátis** (sem custo de API), **todos os gatilhos** (início, fim, virada de líder, resumo do dia).
+
+- **Perfil de sistema `🎙️ Narrador`** (espelha o sync_user): criado via Management API (seed de DADOS, não schema), credencial no vault `keli-vault/bolao-narrator` (uid:secret), `system_config.narrator_user_id`. Railway: `NARRATOR_USER_ID/SECRET` (refs `@vault` no deploy.railway.json).
+- **Schema** (`20260616_narrator.sql` + `_fix`): `narrator_events` (ledger de idempotência, PK pool+event_key), `_is_narrator_user`, RPC `narrator_post` (valida narrador + dedup ATÔMICO: reserva o event_key, só posta se for novo → nunca duplica mesmo com ticks sobrepostos). Fix forward-only: `v_new` era boolean recebendo `row_count` (integer).
+- **Motor** (`src/lib/narrator/`): `templates.ts` (frases raiz por evento, variação determinística por hash) + `index.ts` (engine lê estado do banco, calcula quem cravou/errou via `scorePrediction`, líder via pred+special+`computeLiveBracketPoints`, resumo após 21h BRT) + config from env. Roda no **mesmo tick do cron de sync** (instrumentation) — independe de mudança de placar (kickoff é por tempo). Rota `/api/narrator` (CRON_SECRET) pra disparo manual.
+- **UI**: `Comments.tsx` destaca o Narrador com badge **ADM** (cor accent, borda).
+- **Só atua em bolões reais** (≥2 membros), posta no **mural** (scope pool).
+- **PROVADO no ar** (screenshot): o cron interno disparou no boot e postou **9 comentários reais** no bolão oficial — 6 fins de jogo (ex: "João bateu o martelo no placar exato 🎯"; "prêmio de palpite mais corajoso pro Leandro, que apostou 0x0. Senta lá 🤡"), 1 nova liderança ("👑 VIROU! Gustavo roque, 55 pts" — bate com o ranking), 1 resumo do dia. Badge ADM renderizado.
+- tsc limpo, **154/154 testes**, build SUCCESS. Deploys `9a20d0a` (feature) + `557fc38` (fix) — ambos SUCCESS, migrations aplicadas pelo pipeline.
+
+## 🗺️ v1.18 — Mega chaveamento: compara o bracket de todos (2026-06-16 21:00)
 
 ## 🗺️ v1.18 — Mega chaveamento: compara o bracket de todos (2026-06-16 21:00)
 

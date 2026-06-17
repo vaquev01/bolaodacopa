@@ -11,6 +11,8 @@
     "FOOTBALL_DATA_TOKEN": "@vault:football-data",
     "SYNC_USER_ID": "@vault:bolao-sync:before-colon",
     "SYNC_USER_SECRET": "@vault:bolao-sync:after-colon",
+    "NARRATOR_USER_ID": "@vault:bolao-narrator:before-colon",
+    "NARRATOR_USER_SECRET": "@vault:bolao-narrator:after-colon",
     "CRON_SECRET": "@vault:bolao-cron",
     "SUPABASE_ACCESS_TOKEN": "@vault:supabase",
     "SUPABASE_PROJECT_REF": "rsippykwiffybjfgljzj"

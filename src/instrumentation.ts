@@ -18,6 +18,7 @@ export async function register() {
   if (process.env.ENABLE_SYNC_CRON !== "true") return;
 
   const { runSync, syncConfigFromEnv } = await import("@/lib/sync");
+  const { runNarrator, narratorConfigFromEnv } = await import("@/lib/narrator");
 
   const cfg = syncConfigFromEnv();
   if (!cfg) {
@@ -26,6 +27,7 @@ export async function register() {
     );
     return;
   }
+  const narratorCfg = narratorConfigFromEnv();
 
   const tick = async () => {
     try {
@@ -36,6 +38,17 @@ export async function register() {
       }
     } catch (e) {
       console.error("[sync-cron] erro:", e instanceof Error ? e.message : e);
+    }
+    // Narrador (ADM zoeiro) — independe do sync ter mudado algo (kickoffs são por tempo).
+    if (narratorCfg) {
+      try {
+        const n = await runNarrator(narratorCfg);
+        if (n.posted > 0 || n.errors.length > 0) {
+          console.log(`[narrator] ${new Date().toISOString()} ${JSON.stringify(n)}`);
+        }
+      } catch (e) {
+        console.error("[narrator] erro:", e instanceof Error ? e.message : e);
+      }
     }
   };
 

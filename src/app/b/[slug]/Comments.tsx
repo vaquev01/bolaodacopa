@@ -91,23 +91,37 @@ export default function Comments({
         <ul className="flex flex-col gap-2">
           {comments.map((c) => {
             const mine = c.user_id === currentUserId;
+            // O Narrador (ADM automático) vem com o nome marcado por 🎙️.
+            const isNarrator = c.name.startsWith("🎙️");
             return (
               <li
                 key={c.id}
                 className="px-3 py-2 rounded-card"
                 style={{
-                  background: mine
-                    ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card))"
-                    : "var(--color-bg-card)",
-                  border: "1px solid var(--color-border, transparent)",
+                  background: isNarrator
+                    ? "color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-card))"
+                    : mine
+                      ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card))"
+                      : "var(--color-bg-card)",
+                  border: isNarrator
+                    ? "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)"
+                    : "1px solid var(--color-border, transparent)",
                 }}
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span
-                    className="text-[13px] font-semibold truncate"
-                    style={{ color: mine ? "var(--color-accent)" : "var(--color-text-primary)" }}
+                    className="text-[13px] font-semibold truncate flex items-center gap-1.5"
+                    style={{ color: isNarrator || mine ? "var(--color-accent)" : "var(--color-text-primary)" }}
                   >
-                    {mine ? "Você" : c.name}
+                    {isNarrator ? c.name : mine ? "Você" : c.name}
+                    {isNarrator && (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-badge"
+                        style={{ background: "var(--color-accent)", color: "#fff" }}
+                      >
+                        ADM
+                      </span>
+                    )}
                   </span>
                   <span className="text-[11px] flex-shrink-0" style={{ color: "var(--color-text-secondary)" }}>
                     {timeAgo(c.created_at)}

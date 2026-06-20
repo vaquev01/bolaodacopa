@@ -7,8 +7,9 @@
  * Mostra o consenso do campeão + uma grade Campeão/Vice/Semifinalistas por pessoa.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { getFlag } from "@/lib/utils";
+import BracketCompare from "./BracketCompare";
 
 interface BracketPayload {
   champion?: string;
@@ -28,29 +29,10 @@ export interface BracketEntry {
 interface Props {
   allBrackets: BracketEntry[];
   currentUserId: string;
+  groupTeams: Record<string, string[]>;
 }
 
-function TeamChip({ team, strong = false }: { team?: string; strong?: boolean }) {
-  if (!team || team === "A definir") {
-    return <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>—</span>;
-  }
-  return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap">
-      <span aria-hidden="true">{getFlag(team)}</span>
-      <span
-        className="text-[12px] truncate"
-        style={{ color: "var(--color-text-primary)", fontWeight: strong ? 700 : 500, maxWidth: 88 }}
-        title={team}
-      >
-        {team}
-      </span>
-    </span>
-  );
-}
-
-export default function MegaBracket({ allBrackets, currentUserId }: Props) {
-  const [showQF, setShowQF] = useState(false);
-
+export default function MegaBracket({ allBrackets, currentUserId, groupTeams }: Props) {
   // Você primeiro, depois alfabético.
   const entries = useMemo(() => {
     return [...allBrackets].sort((a, b) => {
@@ -74,9 +56,6 @@ export default function MegaBracket({ allBrackets, currentUserId }: Props) {
       .map(([team, people]) => ({ team, people }))
       .sort((a, b) => b.people.length - a.people.length || a.team.localeCompare(b.team, "pt-BR"));
   }, [entries, currentUserId]);
-
-  const vice = (p: BracketPayload): string | undefined =>
-    (p.finalists ?? []).find((t) => t !== p.champion);
 
   if (entries.length === 0) return null;
 
@@ -124,78 +103,8 @@ export default function MegaBracket({ allBrackets, currentUserId }: Props) {
         </div>
       </section>
 
-      {/* Grade comparativa */}
-      <section>
-        <h3 className="text-[13px] font-semibold mb-2" style={{ color: "var(--color-text-secondary)" }}>
-          Caminho de cada um até o título
-        </h3>
-        <div className="overflow-x-auto -mx-1 px-1 pb-1">
-          <table className="w-full border-separate" style={{ borderSpacing: 0 }}>
-            <thead>
-              <tr>
-                <th
-                  className="sticky left-0 z-10 text-left text-[11px] font-semibold px-2 py-2"
-                  style={{ background: "var(--color-bg-primary)", color: "var(--color-text-secondary)" }}
-                >
-                  Quem
-                </th>
-                <th className="text-left text-[11px] font-semibold px-2 py-2 whitespace-nowrap" style={{ color: "var(--color-text-secondary)" }}>🥇 Campeão</th>
-                <th className="text-left text-[11px] font-semibold px-2 py-2 whitespace-nowrap" style={{ color: "var(--color-text-secondary)" }}>🥈 Vice</th>
-                <th className="text-left text-[11px] font-semibold px-2 py-2 whitespace-nowrap" style={{ color: "var(--color-text-secondary)" }}>🏅 Semifinais</th>
-                {showQF && (
-                  <th className="text-left text-[11px] font-semibold px-2 py-2 whitespace-nowrap" style={{ color: "var(--color-text-secondary)" }}>⚔️ Quartas</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e) => {
-                const mine = e.user_id === currentUserId;
-                const semis = e.payload.sf_winners ?? [];
-                const qfs = e.payload.qf_winners ?? [];
-                return (
-                  <tr key={e.user_id}>
-                    <td
-                      className="sticky left-0 z-10 px-2 py-2 text-[12px] font-semibold whitespace-nowrap"
-                      style={{
-                        background: mine ? "color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-card))" : "var(--color-bg-card)",
-                        color: mine ? "var(--color-accent)" : "var(--color-text-primary)",
-                        borderTop: "1px solid var(--border-subtle)",
-                      }}
-                    >
-                      {mine ? "Você" : e.name}
-                    </td>
-                    <td className="px-2 py-2" style={{ background: "var(--color-bg-card)", borderTop: "1px solid var(--border-subtle)" }}>
-                      <TeamChip team={e.payload.champion} strong />
-                    </td>
-                    <td className="px-2 py-2" style={{ background: "var(--color-bg-card)", borderTop: "1px solid var(--border-subtle)" }}>
-                      <TeamChip team={vice(e.payload)} />
-                    </td>
-                    <td className="px-2 py-2" style={{ background: "var(--color-bg-card)", borderTop: "1px solid var(--border-subtle)" }}>
-                      <div className="flex flex-col gap-1">
-                        {semis.length ? semis.map((t, i) => <TeamChip key={i} team={t} />) : <TeamChip />}
-                      </div>
-                    </td>
-                    {showQF && (
-                      <td className="px-2 py-2" style={{ background: "var(--color-bg-card)", borderTop: "1px solid var(--border-subtle)" }}>
-                        <div className="flex flex-col gap-1">
-                          {qfs.length ? qfs.map((t, i) => <TeamChip key={i} team={t} />) : <TeamChip />}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <button
-          onClick={() => setShowQF((v) => !v)}
-          className="mt-2 text-[13px] font-semibold"
-          style={{ color: "var(--color-accent)" }}
-        >
-          {showQF ? "Ocultar quartas de final" : "Mostrar também as quartas de final"}
-        </button>
-      </section>
+      {/* Árvore comparativa: caminho de cada um, com filtro de competidor e fase */}
+      <BracketCompare allBrackets={allBrackets} currentUserId={currentUserId} groupTeams={groupTeams} />
     </div>
   );
 }

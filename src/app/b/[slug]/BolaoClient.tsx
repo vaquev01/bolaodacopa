@@ -411,7 +411,7 @@ export default function BolaoClient({
             {/* Mega chaveamento — comparação de todos, só com o bolão fechado */}
             {bracketLocked && allBrackets.length > 1 && (
               <div className="max-w-lg lg:max-w-[1400px] mx-auto mb-5 pb-5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <MegaBracket allBrackets={allBrackets} currentUserId={currentUserId} />
+                <MegaBracket allBrackets={allBrackets} currentUserId={currentUserId} groupTeams={groupTeams} />
               </div>
             )}
             {/* Desktop: largura total até 1400px; mobile: coluna única sem alteração */}

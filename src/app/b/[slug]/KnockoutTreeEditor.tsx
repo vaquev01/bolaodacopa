@@ -30,8 +30,14 @@ import {
   FINAL_MATCH,
   slotLabel,
   computeThirdAlloc,
-  type R32Slot,
 } from "@/lib/scoring/wc26-pairings";
+import {
+  resolveSlot,
+  r32Winner,
+  participantsOf,
+  type Round,
+  type Phase,
+} from "@/lib/scoring/bracket-tree";
 import { getFlag } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -91,8 +97,8 @@ interface Props {
   scoreBonus?: ScoreBonusConfig | null;
 }
 
-// Fase com seu set de vencedores no payload (semântica nova — ver header)
-type Phase = "r16_winners" | "qf_winners" | "sf_winners" | "finalists";
+// Fase com seu set de vencedores no payload (semântica nova — ver header).
+// O tipo Phase e a resolução da árvore vêm de @/lib/scoring/bracket-tree.
 
 // Ordem hierárquica das fases (para cascata de remoção)
 const PHASE_ORDER: Phase[] = ["r16_winners", "qf_winners", "sf_winners", "finalists"];
@@ -104,76 +110,6 @@ const PHASE_FULL: Record<Phase, number> = {
   sf_winners: 4,
   finalists: 2,
 };
-
-// ─── Helpers de resolução de slot ─────────────────────────────
-
-/** Resolve o time de um slot dos 16 avos (1º/2º do grupo ou 3º alocado). */
-function resolveSlot(
-  slot: R32Slot,
-  payload: BracketPayload,
-  thirdAlloc: Record<number, string>,
-  matchNum: number
-): string | null {
-  if (slot.pos === 1) return payload.groups[slot.group]?.[0] || null;
-  if (slot.pos === 2) return payload.groups[slot.group]?.[1] || null;
-  return thirdAlloc[matchNum] || null;
-}
-
-/** Vencedor marcado de um jogo dos 16 avos (gravado em r16_winners). */
-function r32Winner(
-  matchNum: number,
-  payload: BracketPayload,
-  thirdAlloc: Record<number, string>
-): string | null {
-  const m = R32_MATCHES.find((x) => x.match === matchNum);
-  if (!m) return null;
-  const cands = [
-    resolveSlot(m.home, payload, thirdAlloc, matchNum),
-    resolveSlot(m.away, payload, thirdAlloc, matchNum),
-  ].filter((t): t is string => Boolean(t));
-  return cands.find((t) => payload.r16_winners.includes(t)) ?? null;
-}
-
-type Round = "r16" | "qf" | "sf" | "final";
-
-const ROUND_DEFS: Record<
-  Round,
-  {
-    matches: readonly { match: number; from: readonly [number, number] }[];
-    /** Onde o vencedor desta rodada é gravado. */
-    winnerPhase: Phase | "champion";
-    /** Rodada que alimenta esta. */
-    feeder: Round | "r32";
-  }
-> = {
-  r16: { matches: R16_MATCHES, winnerPhase: "qf_winners", feeder: "r32" },
-  qf: { matches: QF_MATCHES, winnerPhase: "sf_winners", feeder: "r16" },
-  sf: { matches: SF_MATCHES, winnerPhase: "finalists", feeder: "qf" },
-  final: { matches: [FINAL_MATCH], winnerPhase: "champion", feeder: "sf" },
-};
-
-/** Participantes de um jogo de qualquer rodada pós-16 avos. */
-function participantsOf(
-  round: Round,
-  from: readonly [number, number],
-  payload: BracketPayload,
-  thirdAlloc: Record<number, string>
-): [string | null, string | null] {
-  const feeder = ROUND_DEFS[round].feeder;
-  const winner = (mn: number): string | null => {
-    if (feeder === "r32") return r32Winner(mn, payload, thirdAlloc);
-    const def = ROUND_DEFS[feeder];
-    const m = def.matches.find((x) => x.match === mn);
-    if (!m) return null;
-    const [a, b] = participantsOf(feeder, m.from, payload, thirdAlloc);
-    const cands = [a, b].filter((t): t is string => Boolean(t));
-    if (def.winnerPhase === "champion") {
-      return cands.find((t) => payload.champion === t) ?? null;
-    }
-    return cands.find((t) => payload[def.winnerPhase].includes(t)) ?? null;
-  };
-  return [winner(from[0]), winner(from[1])];
-}
 
 // ─── Cascata de remoção ───────────────────────────────────────
 

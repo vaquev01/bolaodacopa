@@ -125,6 +125,7 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
   const [aId, setAId] = useState<string>(() => options[0]?.id ?? "");
   const [bId, setBId] = useState<string>(""); // "" = não comparar
   const [colFilter, setColFilter] = useState<ColKey | "all">("all");
+  const [viewMode, setViewMode] = useState<"arvore" | "tabela">("arvore");
 
   const a = options.find((o) => o.id === aId) ?? options[0];
   const b = bId ? options.find((o) => o.id === bId) ?? null : null;
@@ -160,32 +161,62 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
           Árvore de cada um 🌳
         </h3>
         <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-          O caminho de mata-mata até o título. Escolha um competidor e, se quiser, compare com outro.
+          {viewMode === "arvore"
+            ? "O caminho de mata-mata até o título. Escolha um competidor e, se quiser, compare com outro."
+            : "Todo mundo lado a lado — uma coluna por participante. Escolha a fase pra comparar quem cada um leva em cada vaga."}
         </p>
       </div>
 
-      {/* Seletores de competidor */}
-      <div className="flex flex-wrap items-center gap-2">
-        <CompetitorSelect
-          label="Ver"
-          value={aId}
-          options={options.filter((o) => o.id !== bId)}
-          onChange={setAId}
-        />
-        <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-          comparar com
-        </span>
-        <CompetitorSelect
-          label="—"
-          value={bId}
-          options={options.filter((o) => o.id !== aId)}
-          onChange={setBId}
-          allowNone
-        />
+      {/* Toggle de modo: 1×1 (árvore) vs todos (tabela) */}
+      <div className="flex p-1 rounded-button self-start" style={{ background: "var(--color-bg-secondary)" }} role="tablist" aria-label="Modo de comparação">
+        {(
+          [
+            ["arvore", "Árvore (1×1)"],
+            ["tabela", "Tabela (todos)"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={viewMode === key}
+            onClick={() => setViewMode(key)}
+            className="px-3 py-1.5 rounded text-[12px] font-semibold transition-all"
+            style={{
+              background: viewMode === key ? "var(--color-bg-card)" : "transparent",
+              color: viewMode === key ? "var(--color-accent)" : "var(--color-text-secondary)",
+              boxShadow: viewMode === key ? "var(--shadow-card)" : "none",
+              borderRadius: "6px",
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
+      {/* Seletores de competidor (só no modo árvore) */}
+      {viewMode === "arvore" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <CompetitorSelect
+            label="Ver"
+            value={aId}
+            options={options.filter((o) => o.id !== bId)}
+            onChange={setAId}
+          />
+          <span className="text-[12px] font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+            comparar com
+          </span>
+          <CompetitorSelect
+            label="—"
+            value={bId}
+            options={options.filter((o) => o.id !== aId)}
+            onChange={setBId}
+            allowNone
+          />
+        </div>
+      )}
+
       {/* Resumo de concordância */}
-      {agreement && b && (
+      {viewMode === "arvore" && agreement && b && (
         <div
           className="flex flex-wrap gap-1.5 px-3 py-2 rounded-card"
           style={{ background: "var(--color-bg-card)", boxShadow: "var(--shadow-card)" }}
@@ -211,7 +242,7 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
 
       {/* Filtro de fase */}
       <div className="flex overflow-x-auto gap-1 pb-1" style={{ scrollbarWidth: "none" }} role="tablist" aria-label="Fase do mata-mata">
-        {([["all", "Árvore inteira"], ...COLUMNS.map((c) => [c.key, c.label] as const)] as const).map(
+        {([["all", viewMode === "tabela" ? "Todas as fases" : "Árvore inteira"], ...COLUMNS.map((c) => [c.key, c.label] as const)] as const).map(
           ([key, label]) => (
             <button
               key={key}
@@ -231,7 +262,13 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
         )}
       </div>
 
+      {/* Tabela — todos os participantes lado a lado */}
+      {viewMode === "tabela" && (
+        <CompareGrid options={options} teamGroup={teamGroup} cols={visibleCols} currentUserId={currentUserId} />
+      )}
+
       {/* Árvore */}
+      {viewMode === "arvore" && (
       <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }} aria-label="Chaveamento comparativo">
         <div
           className="flex flex-row items-stretch"
@@ -290,7 +327,123 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
           })}
         </div>
       </div>
+      )}
     </section>
+  );
+}
+
+// ─── Tabela: todos os participantes lado a lado ───────────────
+
+function CompareGrid({
+  options,
+  teamGroup,
+  cols,
+  currentUserId,
+}: {
+  options: { id: string; label: string; payload: KnockoutTreePayload }[];
+  teamGroup: Record<string, string>;
+  cols: { key: ColKey; label: string; phase: Phase | "champion"; round: Round | null }[];
+  currentUserId: string;
+}) {
+  // Vencedor de cada participante por (coluna, matchNum).
+  const winnersByUser = useMemo(() => {
+    return options.map((o) => {
+      const alloc = autoThirdAlloc(o.payload, teamGroup);
+      const byCol: Record<string, Map<number, string | null>> = {};
+      for (const col of cols) {
+        const m = new Map<number, string | null>();
+        for (const c of confrontosDaColuna(col.key, o.payload, alloc)) {
+          m.set(c.matchNum, winnerOf(c, col.phase, o.payload));
+        }
+        byCol[col.key] = m;
+      }
+      return { id: o.id, label: o.label, byCol };
+    });
+  }, [options, teamGroup, cols]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {cols.map((col) => {
+        const matchNums = confrontosDaColuna(col.key, options[0].payload, autoThirdAlloc(options[0].payload, teamGroup)).map(
+          (c) => c.matchNum
+        );
+        return (
+          <div key={col.key}>
+            <ColumnLabel label={col.label} />
+            <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+              <table className="border-separate" style={{ borderSpacing: 0 }}>
+                <thead>
+                  <tr>
+                    <th
+                      className="sticky left-0 z-10 text-left text-[10px] font-bold uppercase px-2 py-1.5"
+                      style={{ background: "var(--color-bg-primary)", color: "var(--color-text-secondary)", minWidth: "56px" }}
+                    >
+                      {col.key === "final" ? "🏆" : "Jogo"}
+                    </th>
+                    {winnersByUser.map((u) => (
+                      <th
+                        key={u.id}
+                        className="text-left text-[11px] font-bold px-2 py-1.5 whitespace-nowrap"
+                        style={{ color: u.id === currentUserId ? "var(--color-accent)" : "var(--color-text-primary)", minWidth: "104px" }}
+                      >
+                        {u.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {matchNums.map((mn) => {
+                    // consenso da linha: time mais frequente
+                    const picks = winnersByUser.map((u) => u.byCol[col.key]?.get(mn) ?? null);
+                    const freq = new Map<string, number>();
+                    for (const p of picks) if (p) freq.set(p, (freq.get(p) ?? 0) + 1);
+                    let top: string | null = null;
+                    let topN = 0;
+                    for (const [t, n] of freq) if (n > topN) { top = t; topN = n; }
+                    const allAgree = freq.size === 1 && picks.every(Boolean);
+                    return (
+                      <tr key={mn}>
+                        <td
+                          className="sticky left-0 z-10 text-[10px] font-semibold tabular-nums px-2 py-1.5"
+                          style={{ background: "var(--color-bg-card)", color: "var(--color-text-secondary)", borderTop: "1px solid var(--border-subtle)" }}
+                        >
+                          {col.key === "final" ? "Campeão" : mn}
+                        </td>
+                        {winnersByUser.map((u) => {
+                          const pick = u.byCol[col.key]?.get(mn) ?? null;
+                          const isTop = pick !== null && pick === top;
+                          const cellBg = allAgree
+                            ? "color-mix(in srgb, var(--color-success) 10%, var(--color-bg-card))"
+                            : pick && !isTop
+                              ? "color-mix(in srgb, var(--color-warning, #C77700) 14%, var(--color-bg-card))"
+                              : "var(--color-bg-card)";
+                          return (
+                            <td
+                              key={u.id}
+                              className="px-2 py-1.5"
+                              style={{ background: cellBg, borderTop: "1px solid var(--border-subtle)" }}
+                            >
+                              {pick ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>
+                                  <span aria-hidden="true">{getFlag(pick)}</span>
+                                  <span className="truncate" style={{ maxWidth: 88 }}>{pick}</span>
+                                </span>
+                              ) : (
+                                <span className="text-[11px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

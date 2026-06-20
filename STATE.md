@@ -1,6 +1,22 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-20 14:40 (v1.20 — Árvore de chaveamento comparativa)
+**Atualizado:** 2026-06-20 15:05 (v1.21 — fix pontuação inflada + resenha em destaque)
+
+## 🐛 v1.21 — Bracket não pontua antes do grupo terminar + resenha no topo (2026-06-20 15:05)
+
+Victor (print do ranking 70-82 pts vs narrador "ninguém cravou placar"): "verificar a contagem — efetivamente não houve classificação de ninguém, só os placares". E: "resenha com mais visibilidade/aproveitamento na tela, talvez na inicial".
+
+**1. Fix de scoring (P0) — bracket inflado durante a fase de grupos.**
+- **Causa-raiz (confirmada no banco):** `deriveBracketOutcome` (src/lib/scoring/bracket.ts) resolvia a classificação de um grupo a partir de QUALQUER jogo `finished` — 1 jogo (ex: Brasil 3×0 Haiti) já marcava 1º/2º provisórios como `qualified` e distribuía `group_qualified`(+2)/`group_position_exact`(+1). Estado real: 0 grupos completos (A-D 4/6, E-L 2/6), mata-mata todo `scheduled`. Os 70-82 pts eram 100% bracket fantasma.
+- **Fix:** grupo só resolve quando TODOS os seus jogos terminaram (`finished == total` via contagem em `matches`). `deriveBracketOutcome` é fonte única → conserta ranking ao vivo, narrator, result route e board de uma vez. +1 teste de regressão.
+- **Prova no ar:** ranking pós-fix = João 5 pts (6 jogos), **resto 0** — bate exatamente com `SUM(prediction_scores)` por usuário no banco. Pontos de placar/resultado de jogos jogados permanecem; classificação só pontua quando o grupo fechar.
+
+**2. Resenha em destaque (escolha do Victor: banner no topo + tela cheia).**
+- **Banner sempre visível** abaixo do header (todas as abas): mostra o recado mais recente do mural (🎙️ + badge ADM p/ Narrador; timeAgo) ou CTA quando vazio. Tocar abre a **resenha em overlay tela cheia** (header + Fechar + `Comments` scope pool + input). Removido o mural enterrado no fim da aba Ranking. `timeAgo` exportado de Comments p/ reuso.
+
+- **Verificação**: tsc 0, **155/155 testes**, build SUCCESS, eslint limpo. Deploy GitOps (`git push deploy main`): commits `f987860` (fix) + `62450c3` (resenha) → deployment **SUCCESS** confirmado por commitHash. Screenshots no Chrome real: ranking corrigido, banner com recado do Narrador, resenha full-screen.
+
+## 🌳 v1.20 — Árvore de chaveamento comparativa, com filtro de competidor e fase (2026-06-20 14:40)
 
 ## 🌳 v1.20 — Árvore de chaveamento comparativa, com filtro de competidor e fase (2026-06-20 14:40)
 

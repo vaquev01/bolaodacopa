@@ -138,8 +138,8 @@ export default function Comments({
                   </span>
                 </div>
                 <p
-                  className="text-[14px] mt-0.5 whitespace-pre-wrap break-words"
-                  style={{ color: "var(--color-text-primary)" }}
+                  className="text-[15px] mt-0.5 whitespace-pre-wrap break-words"
+                  style={{ color: "var(--color-text-primary)", lineHeight: 1.4 }}
                 >
                   {c.body}
                 </p>

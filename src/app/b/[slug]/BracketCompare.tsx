@@ -92,10 +92,11 @@ function venceu(team: string | null, phase: Phase | "champion", p: KnockoutTreeP
   return p[phase].includes(team);
 }
 
-/** O competidor B também colocou `team` avançando nesta fase? */
-function bConcorda(team: string, phase: Phase | "champion", bp: KnockoutTreePayload): boolean {
-  if (phase === "champion") return bp.champion === team;
-  return bp[phase].includes(team);
+/** Quem o payload colocou avançando neste confronto (o vencedor da vaga). */
+function winnerOf(c: Confronto, phase: Phase | "champion", p: KnockoutTreePayload): string | null {
+  if (venceu(c.a, phase, p)) return c.a;
+  if (venceu(c.b, phase, p)) return c.b;
+  return null;
 }
 
 function teamsAdvancing(phase: Phase | "champion", p: KnockoutTreePayload): string[] {
@@ -131,6 +132,10 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
   const aAlloc = useMemo(
     () => (a ? autoThirdAlloc(a.payload, teamGroup) : {}),
     [a, teamGroup]
+  );
+  const bAlloc = useMemo(
+    () => (b ? autoThirdAlloc(b.payload, teamGroup) : {}),
+    [b, teamGroup]
   );
 
   // Resumo de concordância por fase (só quando comparando).
@@ -235,6 +240,13 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
           {visibleCols.map((col) => {
             const confrontos = confrontosDaColuna(col.key, a.payload, aAlloc);
             const isFinal = col.key === "final";
+            // Vencedor de B na MESMA vaga (mesmo jogo) — pra mostrar quem o outro colocou.
+            const bWinnerByMatch = new Map<number, string | null>();
+            if (b) {
+              for (const bc of confrontosDaColuna(col.key, b.payload, bAlloc)) {
+                bWinnerByMatch.set(bc.matchNum, winnerOf(bc, col.phase, b.payload));
+              }
+            }
             return (
               <div
                 key={col.key}
@@ -264,17 +276,13 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
                       confronto={c}
                       phase={col.phase}
                       aPayload={a.payload}
-                      bPayload={b?.payload ?? null}
+                      bWinner={b ? bWinnerByMatch.get(c.matchNum) ?? null : undefined}
                       bLabel={b?.label ?? null}
                       isFinal={isFinal}
                     />
                   ))}
                   {isFinal && a.payload.champion && (
-                    <ChampionRow
-                      champion={a.payload.champion}
-                      bPayload={b?.payload ?? null}
-                      bLabel={b?.label ?? null}
-                    />
+                    <ChampionRow champion={a.payload.champion} />
                   )}
                 </div>
               </div>
@@ -345,19 +353,22 @@ function ConfrontoCard({
   confronto,
   phase,
   aPayload,
-  bPayload,
+  bWinner,
   bLabel,
   isFinal,
 }: {
   confronto: Confronto;
   phase: Phase | "champion";
   aPayload: KnockoutTreePayload;
-  bPayload: KnockoutTreePayload | null;
+  /** undefined = não comparando; null = comparando mas o outro não definiu; string = pick do outro. */
+  bWinner?: string | null;
   bLabel: string | null;
   isFinal: boolean;
 }) {
   const winA = venceu(confronto.a, phase, aPayload);
   const winB = venceu(confronto.b, phase, aPayload);
+  const winnerATeam = winA ? confronto.a : winB ? confronto.b : null;
+  const comparing = bWinner !== undefined && bLabel !== null;
 
   return (
     <div
@@ -378,9 +389,6 @@ function ConfrontoCard({
         label={confronto.labelA}
         isWinner={winA}
         isLoser={winB && !winA && confronto.a !== null}
-        phase={phase}
-        bPayload={bPayload}
-        bLabel={bLabel}
       />
       <div className="mx-2 h-px" style={{ background: "var(--border-subtle)" }} aria-hidden="true" />
       <SlotRow
@@ -388,10 +396,49 @@ function ConfrontoCard({
         label={confronto.labelB}
         isWinner={winB}
         isLoser={winA && !winB && confronto.b !== null}
-        phase={phase}
-        bPayload={bPayload}
-        bLabel={bLabel}
       />
+      {comparing && winnerATeam && (
+        <CompareFooter winnerATeam={winnerATeam} bWinner={bWinner ?? null} bLabel={bLabel!} />
+      )}
+    </div>
+  );
+}
+
+/** Rodapé do card: mostra QUEM o outro competidor colocou nesta vaga. */
+function CompareFooter({
+  winnerATeam,
+  bWinner,
+  bLabel,
+}: {
+  winnerATeam: string;
+  bWinner: string | null;
+  bLabel: string;
+}) {
+  const same = bWinner !== null && norm(bWinner) === norm(winnerATeam);
+  const bg = same
+    ? "color-mix(in srgb, var(--color-success) 16%, var(--color-bg-card))"
+    : bWinner
+      ? "color-mix(in srgb, var(--color-warning, #C77700) 18%, var(--color-bg-card))"
+      : "var(--color-bg-secondary)";
+  const fg = same ? "var(--color-success)" : bWinner ? "var(--color-warning, #C77700)" : "var(--color-text-secondary)";
+  return (
+    <div
+      className="px-2 py-1 flex items-center gap-1 border-t"
+      style={{ background: bg, borderColor: "var(--border-subtle)" }}
+    >
+      <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: fg }}>
+        {bLabel}:
+      </span>
+      {same ? (
+        <span className="text-[10px] font-bold" style={{ color: fg }}>✓ mesmo palpite</span>
+      ) : bWinner ? (
+        <span className="text-[10px] font-bold inline-flex items-center gap-1 min-w-0" style={{ color: fg }}>
+          <span aria-hidden="true">{getFlag(bWinner)}</span>
+          <span className="truncate">{bWinner}</span>
+        </span>
+      ) : (
+        <span className="text-[10px]" style={{ color: fg }}>não definiu</span>
+      )}
     </div>
   );
 }
@@ -401,24 +448,15 @@ function SlotRow({
   label,
   isWinner,
   isLoser,
-  phase,
-  bPayload,
-  bLabel,
 }: {
   team: string | null;
   label: string;
   isWinner: boolean;
   isLoser: boolean;
-  phase: Phase | "champion";
-  bPayload: KnockoutTreePayload | null;
-  bLabel: string | null;
 }) {
   const isEmpty = !team;
   const bg = isWinner ? "var(--color-accent)" : "transparent";
   const textColor = isWinner ? "#fff" : isEmpty ? "var(--color-text-secondary)" : isLoser ? "var(--color-text-secondary)" : "var(--color-text-primary)";
-
-  // Marca de comparação: só no vencedor escolhido por A, quando comparando.
-  const agree = isWinner && team && bPayload ? bConcorda(team, phase, bPayload) : null;
 
   return (
     <div
@@ -434,34 +472,17 @@ function SlotRow({
       >
         {team ?? <span style={{ opacity: 0.5 }}>{label}</span>}
       </span>
-      {agree !== null && bLabel && (
-        <span
-          className="text-[9px] font-bold flex-shrink-0 px-1 py-0.5 rounded-badge tabular-nums"
-          style={{
-            background: agree ? "var(--color-success)" : "var(--color-warning, #C77700)",
-            color: "#fff",
-          }}
-          title={agree ? `${bLabel} também levou ${team}` : `${bLabel} NÃO levou ${team} aqui`}
-        >
-          {agree ? `✓ ${bLabel}` : `✗ ${bLabel}`}
-        </span>
-      )}
     </div>
   );
 }
 
+function norm(s: string): string {
+  return s.trim().toLocaleLowerCase("pt-BR");
+}
+
 // ─── Campeão ──────────────────────────────────────────────────
 
-function ChampionRow({
-  champion,
-  bPayload,
-  bLabel,
-}: {
-  champion: string;
-  bPayload: KnockoutTreePayload | null;
-  bLabel: string | null;
-}) {
-  const agree = bPayload ? bPayload.champion === champion : null;
+function ChampionRow({ champion }: { champion: string }) {
   return (
     <div
       className="w-full rounded-card overflow-hidden mt-1"
@@ -477,15 +498,6 @@ function ChampionRow({
         <span className="text-[12px] font-bold flex-1" style={{ color: "var(--color-text-primary)" }}>
           {champion}
         </span>
-        {agree !== null && bLabel && (
-          <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded-badge"
-            style={{ background: agree ? "var(--color-success)" : "var(--color-warning, #C77700)", color: "#fff" }}
-            title={agree ? `${bLabel} também crava ${champion} campeão` : `${bLabel} aposta em outro campeão`}
-          >
-            {agree ? `✓ ${bLabel}` : `✗ ${bLabel}`}
-          </span>
-        )}
       </div>
     </div>
   );

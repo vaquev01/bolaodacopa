@@ -294,7 +294,10 @@ export default function BolaoClient({
                       {timeAgo(lastComment.created_at)}
                     </span>
                   </div>
-                  <p className="text-[13px] truncate" style={{ color: "var(--color-text-primary)" }}>
+                  <p
+                    className="text-[14px] font-medium line-clamp-2"
+                    style={{ color: "var(--color-text-primary)", lineHeight: 1.35 }}
+                  >
                     {lastComment.body}
                   </p>
                 </>

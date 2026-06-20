@@ -1,6 +1,17 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-16 21:45 (v1.19 — ADM Narrador: zoeira automática a cada jogo)
+**Atualizado:** 2026-06-20 14:40 (v1.20 — Árvore de chaveamento comparativa)
+
+## 🌳 v1.20 — Árvore de chaveamento comparativa, com filtro de competidor e fase (2026-06-20 14:40)
+
+Victor: "mostrar visualmente as classificações de cada equipe até a final, podendo comparar o que cada um colocou, com filtros pra escolher competidores e comparar das fases de mata-mata." Escolha dele (AskUserQuestion, com previews): formato **árvore / chaveamento** (não tabela nem grade).
+
+- **`src/lib/scoring/bracket-tree.ts`** (novo): extração da lógica PURA de resolução da árvore (`resolveSlot`, `r32Winner`, `participantsOf`, `ROUND_DEFS`, `teamGroupFromGroups`, `autoThirdAlloc`) que vivia privada dentro do `KnockoutTreeEditor`. Fonte única usada pelo editor (interativo) e pela nova árvore (read-only). DRY.
+- **`BracketCompare.tsx`** (novo): árvore read-only 16 avos→Final do competidor escolhido, seletor **"Ver / comparar com — ninguém"**, **resumo de concordância por fase** (X/Y vagas) e **filtro de fase** (Árvore inteira/16 avos/Oitavas/Quartas/Semis/Final — essencial no mobile). Ao comparar, cada vencedor ganha badge ✓/✗ se o outro competidor também levou aquela seleção naquela fase. Campeão com banner dourado + badge de concordância.
+- **`MegaBracket`**: mantém o consenso do campeão; **trocou a tabela compacta** ("Caminho de cada um" + botão quartas) pela árvore comparativa. `groupTeams` passado BolaoClient→MegaBracket→BracketCompare (deriva time→grupo p/ resolver os slots dos 16 avos de cada um).
+- **Nota técnica**: a alocação dos melhores 3ºs na árvore de outro competidor é a determinística (`computeThirdAlloc`) — não preserva override manual (não é salvo no payload). Fases pós-16-avos resolvem por vencedor gravado, então convergem; só os 16 avos podem divergir levemente do que a pessoa viu ao editar. Aceito e documentado.
+- **Verificação**: tsc 0, **154/154 testes**, `next build` SUCCESS (/b/[slug] 27.8→30.5 kB), eslint limpo. **PROVADO no ar** (Chrome real do Victor, screenshot): árvore renderiza com dados reais — 5 colunas com bandeiras, vencedores em azul, perdedores riscados, Espanha campeã destacada; seletores e chips de fase presentes. Falta o Victor clicar "comparar com" (a extensão do Chrome caiu p/ headless sem sessão na hora de testar o clique — lógica é determinística).
+- **Deploy GitOps** (commit `3184b85`): ⚠️ **o repo que o Railway observa é `vaquev01/bolaodacopa` (remote `deploy`), NÃO o `origin` (`keli-products-bolao-copa`)**. Push só no origin não deploya. `git push deploy main` disparou o auto-deploy → deployment do commit `3184b85` **SUCCESS** (confirmado por commitHash na API GraphQL, não só "build verde"). O motor railway-deploy.py só ESPERA o último deployment (deu falso-positivo no commit antigo); `serviceInstanceDeployV2` rebuilda o último commit conhecido pelo Railway, não o HEAD do GitHub.
 
 ## 🎙️ v1.19 — ADM "Narrador": zoeira automática no mural (2026-06-16 21:45)
 

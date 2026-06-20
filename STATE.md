@@ -1,6 +1,17 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-20 15:05 (v1.21 — fix pontuação inflada + resenha em destaque)
+**Atualizado:** 2026-06-20 16:55 (v1.22 — comparação mostra o pick do outro + resenha legível)
+
+## 🆚 v1.22 — Comparação mostra o time que o outro colocou + texto da resenha legível (2026-06-20 16:55)
+
+Victor: "na comparação por fase, além de dizer as diferenças, mostrar os times que a outra pessoa colocou pra sabermos" + "melhorar a visibilidade do texto da resenha".
+
+- **BracketCompare — rodapé por confronto:** antes o vencedor de A ganhava só um badge ✓/✗ (não dizia o pick do outro). Agora calcula a árvore de B (`bAlloc` + `confrontosDaColuna(b)`) e cruza por `matchNum`: cada card mostra um rodapé com QUEM o competidor B colocou avançando NAQUELA vaga — "✓ mesmo palpite" (igual), bandeira+nome do time de B (diverge) ou "não definiu". Vale pra todas as fases, inclusive o campeão (card da Final). `winnerOf` novo; `bConcorda` removido; `ChampionRow` perdeu o badge (comparação agora no card).
+- **Validado com dados reais (banco):** Você×Gustavo — Jogo 73: você Bósnia-Herzegovina, Gustavo Coreia do Sul → rodapé "Gustavo roque: 🇰🇷 Coreia do Sul". Final: você Espanha, Gustavo Brasil → "Gustavo roque: 🇧🇷 Brasil". Jogos comuns (Alemanha/Brasil/França…) → "✓ mesmo palpite".
+- **Resenha mais legível:** banner com texto 14px/medium em 2 linhas (era 13px/1 linha truncada); corpo dos comentários 15px (era 14px) com line-height 1.4.
+- **Verificação**: tsc 0, **155/155 testes**, build SUCCESS, eslint limpo. Deploy GitOps `git push deploy main` → deployment `dddee5d` **SUCCESS** (commitHash confirmado). Screenshot da comparação ativa não saiu: a action `select` do MCP keli-browser cai em headless sem sessão (limitação da ferramenta, não do código) — render base da árvore + banner já provados antes; lógica validada por dados.
+
+## 🐛 v1.21 — Bracket não pontua antes do grupo terminar + resenha no topo (2026-06-20 15:05)
 
 ## 🐛 v1.21 — Bracket não pontua antes do grupo terminar + resenha no topo (2026-06-20 15:05)
 

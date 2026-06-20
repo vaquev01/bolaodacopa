@@ -125,6 +125,33 @@ describe("deriveBracketOutcome — grupos", () => {
     expect(outcome.qualified).toContain("ARG");
   });
 
+  it("NÃO classifica grupo com jogos pendentes (sem classificação prematura)", () => {
+    // Grupo A: 6 jogos no total, só 1 terminou. Nenhum time deve ser dado como
+    // classificado ainda (regressão do bug de bracket inflado na fase de grupos).
+    const pend = (home: string, away: string, i: number): MatchInput => ({
+      id: `pend${i}`,
+      stage: "group" as const,
+      home_team: home,
+      away_team: away,
+      score_home_90: null,
+      score_away_90: null,
+      status: "scheduled" as const,
+      group_code: "A",
+    });
+    const matches: MatchInput[] = [
+      makeGroupMatch("BRA", "MEX", "A", 3, 0), // único terminado
+      pend("ARG", "CAN", 1),
+      pend("BRA", "CAN", 2),
+      pend("ARG", "MEX", 3),
+      pend("BRA", "ARG", 4),
+      pend("MEX", "CAN", 5),
+    ];
+    const outcome = deriveBracketOutcome(matches);
+    expect(outcome.groups["A"]).toBeUndefined();
+    expect(outcome.qualified).not.toContain("BRA");
+    expect(outcome.qualified).toHaveLength(0);
+  });
+
   it("decide vencedor do KO por PÊNALTIS quando empatado em 90/prorrogação", () => {
     // Final 1×1 em 90min, decidida nos pênaltis pra FRA
     const matches: MatchInput[] = [

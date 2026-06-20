@@ -160,6 +160,17 @@ export function deriveBracketOutcome(
   // ── Fase de grupos ────────────────────────────────────────────────────────
   const groupMatches = finished.filter((m) => m.stage === "group" && m.group_code);
 
+  // Total de jogos por grupo (qualquer status) — um grupo só "classifica" quando
+  // TODOS os seus jogos terminaram. Sem isso, 1 jogo decidido já marcaria 1º/2º
+  // provisórios como classificados e distribuiria pontos de classificação que
+  // ainda não aconteceu (bug: bracket inflado durante a fase de grupos).
+  const totalByGroup = new Map<string, number>();
+  for (const m of matches) {
+    if (m.stage === "group" && m.group_code) {
+      totalByGroup.set(m.group_code, (totalByGroup.get(m.group_code) ?? 0) + 1);
+    }
+  }
+
   // Agrupar por group_code
   const byGroup = new Map<string, BracketMatchInput[]>();
   for (const m of groupMatches) {
@@ -169,6 +180,10 @@ export function deriveBracketOutcome(
   }
 
   for (const [groupCode, gMatches] of byGroup.entries()) {
+    // Grupo só resolve quando todos os seus jogos terminaram.
+    const totalDoGrupo = totalByGroup.get(groupCode) ?? 0;
+    if (totalDoGrupo === 0 || gMatches.length < totalDoGrupo) continue;
+
     // Um grupo com 4 times tem 6 jogos
     const teams = new Set<string>();
     for (const m of gMatches) {

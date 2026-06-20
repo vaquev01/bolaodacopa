@@ -10,7 +10,7 @@ import SpecialBetsCard from "./SpecialBetsCard";
 import BracketCard from "./BracketCard";
 import RulesSheet from "./RulesSheet";
 import GaleraGrid from "./GaleraGrid";
-import Comments from "./Comments";
+import Comments, { timeAgo } from "./Comments";
 import MegaBracket, { type BracketEntry } from "./MegaBracket";
 
 interface Pool {
@@ -108,6 +108,7 @@ export default function BolaoClient({
   const defaultTab: Tab = isClassification && bracketEnabled ? "bracket" : "palpites";
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [showRules, setShowRules] = useState(false);
+  const [resenhaOpen, setResenhaOpen] = useState(false);
 
   const hasSpecials = ruleset.special_bets.champion.enabled || ruleset.special_bets.qualifiers.enabled;
   // specials_plus: modo classificação com palpites de placar como bônus
@@ -212,6 +213,10 @@ export default function BolaoClient({
   };
 
   const poolComments = comments.filter((c) => c.scope === "pool");
+  // Recado mais recente do mural — alimenta o banner de resenha no topo.
+  const lastComment = poolComments.length
+    ? [...poolComments].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
+    : null;
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "var(--color-bg-primary)" }}>
@@ -251,6 +256,65 @@ export default function BolaoClient({
           </div>
         </div>
       </header>
+
+      {/* Banner da Resenha — sempre visível, abre o mural em tela cheia */}
+      <div className="px-4 pb-3">
+        <div className="max-w-lg mx-auto">
+          <button
+            onClick={() => setResenhaOpen(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-card text-left transition-all"
+            style={{
+              background: lastComment?.name.startsWith("🎙️")
+                ? "color-mix(in srgb, var(--color-accent) 12%, var(--color-bg-card))"
+                : "var(--color-bg-card)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)",
+              boxShadow: "var(--shadow-card)",
+            }}
+            aria-label="Abrir a resenha do bolão"
+          >
+            <span className="text-[20px] flex-shrink-0" aria-hidden="true">
+              {lastComment?.name.startsWith("🎙️") ? "🎙️" : "🗣️"}
+            </span>
+            <div className="flex-1 min-w-0">
+              {lastComment ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-bold truncate" style={{ color: "var(--color-accent)" }}>
+                      {lastComment.name.startsWith("🎙️") ? lastComment.name : lastComment.name}
+                    </span>
+                    {lastComment.name.startsWith("🎙️") && (
+                      <span
+                        className="text-[9px] font-bold px-1 py-0.5 rounded-badge flex-shrink-0"
+                        style={{ background: "var(--color-accent)", color: "#fff" }}
+                      >
+                        ADM
+                      </span>
+                    )}
+                    <span className="text-[11px] flex-shrink-0 ml-auto" style={{ color: "var(--color-text-secondary)" }}>
+                      {timeAgo(lastComment.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-[13px] truncate" style={{ color: "var(--color-text-primary)" }}>
+                    {lastComment.body}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span className="text-[13px] font-bold block" style={{ color: "var(--color-text-primary)" }}>
+                    Resenha do bolão 🗣️
+                  </span>
+                  <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Abre e manda a primeira — provoca a galera.
+                  </span>
+                </>
+              )}
+            </div>
+            <span className="text-[16px] flex-shrink-0" style={{ color: "var(--color-accent)" }} aria-hidden="true">
+              ›
+            </span>
+          </button>
+        </div>
+      </div>
 
       {/* Tabs */}
       <div className="px-4 pb-3">
@@ -388,22 +452,6 @@ export default function BolaoClient({
               bracketEnabled={bracketEnabled}
               onShowRules={() => setShowRules(true)}
             />
-            {/* Mural do bolão — resenha geral da classificação */}
-            <div className="px-4 pt-2 pb-4">
-              <div className="max-w-lg mx-auto">
-                <h2 className="text-[15px] font-bold mb-2 mt-2" style={{ color: "var(--color-text-primary)" }}>
-                  Resenha do bolão 🗣️
-                </h2>
-                <Comments
-                  poolId={pool.id}
-                  scope="pool"
-                  comments={poolComments}
-                  currentUserId={currentUserId}
-                  placeholder="Provoca a galera…"
-                  emptyLabel="Abre a resenha — manda a primeira."
-                />
-              </div>
-            </div>
           </div>
         )}
         {tab === "bracket" && bracketEnabled && (
@@ -441,6 +489,45 @@ export default function BolaoClient({
           isClassification={isClassification}
           onClose={() => setShowRules(false)}
         />
+      )}
+
+      {/* Resenha em tela cheia */}
+      {resenhaOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "var(--color-bg-primary)" }}
+          role="dialog"
+          aria-label="Resenha do bolão"
+        >
+          <header
+            className="flex items-center justify-between px-4 pt-safe pt-4 pb-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid var(--border-subtle)" }}
+          >
+            <h2 className="text-[17px] font-bold" style={{ color: "var(--color-text-primary)" }}>
+              Resenha do bolão 🗣️
+            </h2>
+            <button
+              onClick={() => setResenhaOpen(false)}
+              className="px-3 py-1.5 rounded-button text-[14px] font-semibold"
+              style={{ background: "var(--color-bg-secondary)", color: "var(--color-text-secondary)" }}
+              aria-label="Fechar resenha"
+            >
+              Fechar
+            </button>
+          </header>
+          <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
+            <div className="max-w-lg mx-auto">
+              <Comments
+                poolId={pool.id}
+                scope="pool"
+                comments={poolComments}
+                currentUserId={currentUserId}
+                placeholder="Provoca a galera…"
+                emptyLabel="Abre a resenha — manda a primeira."
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

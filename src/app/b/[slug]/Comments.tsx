@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Comment } from "@/lib/types";
 
-function timeAgo(iso: string): string {
+export function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
   const diff = Date.now() - then;
   const min = Math.floor(diff / 60000);

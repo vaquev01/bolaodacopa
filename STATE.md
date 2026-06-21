@@ -1,6 +1,18 @@
 # STATE — bolao-copa
 
-**Atualizado:** 2026-06-20 16:55 (v1.22 — comparação mostra o pick do outro + resenha legível)
+**Atualizado:** 2026-06-21 12:00 (v1.23 — resenha estilo chat + banner inteiro + comparativo com grupos e pontos)
+
+## 💬 v1.23 — Resenha como chat, banner do Narrador inteiro, comparativo com classificação de grupos + pontos por acerto (2026-06-21 12:00)
+
+Victor (3 reclamações com prints): (1) resenha empilha as mensagens mais novas no topo, forçando rolar; (2) na tela principal o comentário do Narrador no banner fica cortado e o espaço é mal aproveitado; (3) o comparativo só mostra os vencedores do mata-mata — quer ver a classificação de **todos os jogos/grupos** e a **pontuação gerada por cada acerto**.
+
+- **Resenha estilo conversa (`Comments.tsx` + overlay no `BolaoClient`):** nova prop `layout="chat"`. Ordem cronológica natural (mais antigo no topo, **mais recente embaixo**, sort por `created_at`), lista rola com **input fixo no rodapé** e **auto-scroll pro fim ao abrir** (`endRef` + scrollIntoView) — abre já na mensagem nova, sem rolar a tela. Overlay agora é `flex-1 min-h-0` + `h-full` (altura definida pro chat funcionar). Modo `inline` (sheet da Galera) inalterado.
+- **Banner do Narrador inteiro + mais espaço (`BolaoClient`):** removido o `line-clamp-2` → texto completo (`whitespace-pre-wrap`, comentário ≤280 chars cabe); `items-start` + chevron `self-center`. Containers principais (header/banner/tabs) alargados no desktop (`lg:max-w-3xl`/`2xl`) pra aproveitar a tela larga; resenha em tela cheia `lg:max-w-2xl`.
+- **Comparativo: classificação de grupos + pontos por acerto (`BracketCompare` ← `MegaBracket` ← `BolaoClient`):**
+  - `BolaoClient` deriva o **resultado real** (`deriveBracketOutcome` dos `matches`, mesma fonte do ranking ao vivo) e passa `outcome` + `bracketPoints` (do ruleset) até o comparativo.
+  - Nova **tabela de Grupos** (`GroupsGrid`): 1º/2º de cada grupo, todos lado a lado, com filtro "Grupos" — é a "classificação" que faltava (antes só mata-mata).
+  - **Pontos por acerto** (`PointsBadge` "+N" verde) em cada célula da tabela, da árvore (header do confronto + campeão) e dos grupos. Lógica `koCellScore`/`groupCellScore` **espelha exatamente o `scoreBracket`** (fonte única dos valores = ruleset; nada inventado): grupos = classificado + posição exata; mata-mata = seleção presente na fase de destino (r16/qf/sf/final/champion). Só aparece quando há `outcome` + `bracketPoints`.
+- **Verificação:** tsc 0, **155/155 testes**, eslint limpo, `next build` SUCCESS (/b/[slug] 30.5→33.1 kB).
 
 ## 🆚 v1.22 — Comparação mostra o time que o outro colocou + texto da resenha legível (2026-06-20 16:55)
 

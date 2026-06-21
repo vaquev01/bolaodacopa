@@ -29,12 +29,17 @@ import {
   type Round,
 } from "@/lib/scoring/bracket-tree";
 import { getFlag } from "@/lib/utils";
+import type { BracketOutcome, BracketPoints } from "@/lib/scoring";
 import type { BracketEntry } from "./MegaBracket";
 
 interface Props {
   allBrackets: BracketEntry[];
   currentUserId: string;
   groupTeams: Record<string, string[]>;
+  /** Resultado real do torneio — se presente, habilita pontuação por acerto. */
+  outcome?: BracketOutcome;
+  /** Pontos por fase do ruleset. */
+  bracketPoints?: BracketPoints;
 }
 
 // Colunas da árvore. `phase` = onde o vencedor do confronto é gravado.
@@ -104,8 +109,83 @@ function teamsAdvancing(phase: Phase | "champion", p: KnockoutTreePayload): stri
   return p[phase];
 }
 
-export default function BracketCompare({ allBrackets, currentUserId, groupTeams }: Props) {
+// ─── Pontuação por acerto ─────────────────────────────────────
+// Espelha exatamente o scoreBracket (src/lib/scoring/bracket.ts): cada coluna do
+// mata-mata pontua "seleção presente na fase de destino"; grupos pontuam
+// classificado + posição exata. Fonte única de valores = bracketPoints (ruleset).
+
+interface CellScore {
+  /** Pontos que este palpite rendeu (0 se errou ou fase não resolvida). */
+  earned: number;
+  /** A fase/grupo já foi decidida no torneio real? */
+  resolved: boolean;
+  /** Acertou (rendeu > 0)? */
+  hit: boolean;
+}
+
+/** Por coluna de mata-mata: conjunto do outcome que confirma o pick + quanto vale. */
+const KO_SCORE: Record<
+  ColKey,
+  { teams: (o: BracketOutcome) => string[]; pts: (p: BracketPoints) => number; resolved: (o: BracketOutcome) => boolean }
+> = {
+  r32: { teams: (o) => o.r16_teams, pts: (p) => p.r16, resolved: (o) => o.r16_teams.length > 0 },
+  r16: { teams: (o) => o.qf_teams, pts: (p) => p.qf, resolved: (o) => o.qf_teams.length > 0 },
+  qf: { teams: (o) => o.sf_teams, pts: (p) => p.sf, resolved: (o) => o.sf_teams.length > 0 },
+  sf: { teams: (o) => o.finalists, pts: (p) => p.final, resolved: (o) => o.finalists.length > 0 },
+  final: { teams: (o) => (o.champion ? [o.champion] : []), pts: (p) => p.champion, resolved: (o) => o.champion !== null },
+};
+
+function koCellScore(
+  col: ColKey,
+  team: string | null,
+  outcome?: BracketOutcome,
+  points?: BracketPoints
+): CellScore | null {
+  if (!team || !outcome || !points) return null;
+  const def = KO_SCORE[col];
+  if (!def.resolved(outcome)) return { earned: 0, resolved: false, hit: false };
+  const hit = def.teams(outcome).some((t) => norm(t) === norm(team));
+  return { earned: hit ? def.pts(points) : 0, resolved: true, hit };
+}
+
+function groupCellScore(
+  groupCode: string,
+  team: string | null,
+  pos: number,
+  outcome?: BracketOutcome,
+  points?: BracketPoints
+): CellScore | null {
+  if (!team || !outcome || !points) return null;
+  const actual = outcome.groups[groupCode];
+  if (!actual) return { earned: 0, resolved: false, hit: false };
+  let earned = 0;
+  if (points.group_qualified > 0 && outcome.qualified.some((t) => norm(t) === norm(team))) {
+    earned += points.group_qualified;
+  }
+  const atPos = pos === 0 ? actual.first : actual.second;
+  if (points.group_position_exact > 0 && atPos && norm(atPos) === norm(team)) {
+    earned += points.group_position_exact;
+  }
+  return { earned, resolved: true, hit: earned > 0 };
+}
+
+/** Badge "+N" verde quando acertou; vazio se errou/pendente. */
+function PointsBadge({ score }: { score: CellScore | null }) {
+  if (!score || !score.resolved || score.earned <= 0) return null;
+  return (
+    <span
+      className="text-[10px] font-bold tabular-nums px-1 py-0.5 rounded-badge flex-shrink-0"
+      style={{ background: "color-mix(in srgb, var(--color-success) 18%, transparent)", color: "var(--color-success)" }}
+    >
+      +{score.earned}
+    </span>
+  );
+}
+
+export default function BracketCompare({ allBrackets, currentUserId, groupTeams, outcome, bracketPoints }: Props) {
   const teamGroup = useMemo(() => teamGroupFromGroups(groupTeams), [groupTeams]);
+  // Só mostra a coluna de pontos quando temos o resultado real + a tabela de pontos.
+  const scoringOn = !!outcome && !!bracketPoints;
 
   // Você primeiro, depois alfabético.
   const options = useMemo(() => {
@@ -124,8 +204,17 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
 
   const [aId, setAId] = useState<string>(() => options[0]?.id ?? "");
   const [bId, setBId] = useState<string>(""); // "" = não comparar
-  const [colFilter, setColFilter] = useState<ColKey | "all">("all");
+  const [colFilter, setColFilter] = useState<ColKey | "all" | "groups">("all");
   const [viewMode, setViewMode] = useState<"arvore" | "tabela">("arvore");
+
+  // Códigos de grupo presentes nos palpites (A, B, C, …), ordenados.
+  const groupCodes = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of options) {
+      for (const g of Object.keys((o.payload.groups as Record<string, string[]>) ?? {})) set.add(g);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [options]);
 
   const a = options.find((o) => o.id === aId) ?? options[0];
   const b = bId ? options.find((o) => o.id === bId) ?? null : null;
@@ -153,6 +242,12 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
   if (options.length === 0 || !a) return null;
 
   const visibleCols = colFilter === "all" ? COLUMNS : COLUMNS.filter((c) => c.key === colFilter);
+  // Tabela de grupos (classificação 1º/2º) aparece em "Todas as fases" no modo
+  // tabela, ou sempre que o filtro "Grupos" estiver selecionado.
+  const showGroupsTable =
+    groupCodes.length > 0 &&
+    (colFilter === "all" || colFilter === "groups") &&
+    (viewMode === "tabela" || colFilter === "groups");
 
   return (
     <section className="flex flex-col gap-3">
@@ -163,7 +258,13 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
         <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
           {viewMode === "arvore"
             ? "O caminho de mata-mata até o título. Escolha um competidor e, se quiser, compare com outro."
-            : "Todo mundo lado a lado — uma coluna por participante. Escolha a fase pra comparar quem cada um leva em cada vaga."}
+            : "Todo mundo lado a lado — uma coluna por participante. Inclui a classificação dos grupos (1º/2º) e cada fase do mata-mata."}
+          {scoringOn && (
+            <>
+              {" "}
+              <span style={{ color: "var(--color-success)", fontWeight: 600 }}>+N</span> = pontos que o acerto já rendeu.
+            </>
+          )}
         </p>
       </div>
 
@@ -242,13 +343,17 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
 
       {/* Filtro de fase */}
       <div className="flex overflow-x-auto gap-1 pb-1" style={{ scrollbarWidth: "none" }} role="tablist" aria-label="Fase do mata-mata">
-        {([["all", viewMode === "tabela" ? "Todas as fases" : "Árvore inteira"], ...COLUMNS.map((c) => [c.key, c.label] as const)] as const).map(
+        {([
+          ["all", viewMode === "tabela" ? "Todas as fases" : "Árvore inteira"] as const,
+          ...(groupCodes.length > 0 ? ([["groups", "Grupos"]] as const) : []),
+          ...COLUMNS.map((c) => [c.key, c.label] as const),
+        ]).map(
           ([key, label]) => (
             <button
               key={key}
               role="tab"
               aria-selected={colFilter === key}
-              onClick={() => setColFilter(key as ColKey | "all")}
+              onClick={() => setColFilter(key as ColKey | "all" | "groups")}
               className="flex-shrink-0 px-3 py-1.5 rounded-button text-[12px] font-semibold transition-all"
               style={{
                 background: colFilter === key ? "var(--color-accent)" : "var(--color-bg-secondary)",
@@ -262,13 +367,31 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
         )}
       </div>
 
+      {/* Classificação dos grupos (1º/2º) — todos lado a lado */}
+      {showGroupsTable && (
+        <GroupsGrid
+          options={options}
+          groupCodes={groupCodes}
+          currentUserId={currentUserId}
+          outcome={outcome}
+          bracketPoints={bracketPoints}
+        />
+      )}
+
       {/* Tabela — todos os participantes lado a lado */}
-      {viewMode === "tabela" && (
-        <CompareGrid options={options} teamGroup={teamGroup} cols={visibleCols} currentUserId={currentUserId} />
+      {viewMode === "tabela" && visibleCols.length > 0 && (
+        <CompareGrid
+          options={options}
+          teamGroup={teamGroup}
+          cols={visibleCols}
+          currentUserId={currentUserId}
+          outcome={outcome}
+          bracketPoints={bracketPoints}
+        />
       )}
 
       {/* Árvore */}
-      {viewMode === "arvore" && (
+      {viewMode === "arvore" && colFilter !== "groups" && (
       <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }} aria-label="Chaveamento comparativo">
         <div
           className="flex flex-row items-stretch"
@@ -316,10 +439,16 @@ export default function BracketCompare({ allBrackets, currentUserId, groupTeams 
                       bWinner={b ? bWinnerByMatch.get(c.matchNum) ?? null : undefined}
                       bLabel={b?.label ?? null}
                       isFinal={isFinal}
+                      colKey={col.key}
+                      outcome={outcome}
+                      bracketPoints={bracketPoints}
                     />
                   ))}
                   {isFinal && a.payload.champion && (
-                    <ChampionRow champion={a.payload.champion} />
+                    <ChampionRow
+                      champion={a.payload.champion}
+                      score={koCellScore("final", a.payload.champion, outcome, bracketPoints)}
+                    />
                   )}
                 </div>
               </div>
@@ -339,11 +468,15 @@ function CompareGrid({
   teamGroup,
   cols,
   currentUserId,
+  outcome,
+  bracketPoints,
 }: {
   options: { id: string; label: string; payload: KnockoutTreePayload }[];
   teamGroup: Record<string, string>;
   cols: { key: ColKey; label: string; phase: Phase | "champion"; round: Round | null }[];
   currentUserId: string;
+  outcome?: BracketOutcome;
+  bracketPoints?: BracketPoints;
 }) {
   // Vencedor de cada participante por (coluna, matchNum).
   const winnersByUser = useMemo(() => {
@@ -427,6 +560,7 @@ function CompareGrid({
                                 <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>
                                   <span aria-hidden="true">{getFlag(pick)}</span>
                                   <span className="truncate" style={{ maxWidth: 88 }}>{pick}</span>
+                                  <PointsBadge score={koCellScore(col.key, pick, outcome, bracketPoints)} />
                                 </span>
                               ) : (
                                 <span className="text-[11px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>—</span>
@@ -443,6 +577,90 @@ function CompareGrid({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Grupos: classificação 1º/2º de todos lado a lado ─────────
+
+function GroupsGrid({
+  options,
+  groupCodes,
+  currentUserId,
+  outcome,
+  bracketPoints,
+}: {
+  options: { id: string; label: string; payload: KnockoutTreePayload }[];
+  groupCodes: string[];
+  currentUserId: string;
+  outcome?: BracketOutcome;
+  bracketPoints?: BracketPoints;
+}) {
+  return (
+    <div>
+      <ColumnLabel label="Classificação dos grupos (1º e 2º)" />
+      <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+        <table className="border-separate" style={{ borderSpacing: 0 }}>
+          <thead>
+            <tr>
+              <th
+                className="sticky left-0 z-10 text-left text-[10px] font-bold uppercase px-2 py-1.5"
+                style={{ background: "var(--color-bg-primary)", color: "var(--color-text-secondary)", minWidth: "64px" }}
+              >
+                Grupo
+              </th>
+              {options.map((u) => (
+                <th
+                  key={u.id}
+                  className="text-left text-[11px] font-bold px-2 py-1.5 whitespace-nowrap"
+                  style={{ color: u.id === currentUserId ? "var(--color-accent)" : "var(--color-text-primary)", minWidth: "112px" }}
+                >
+                  {u.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groupCodes.map((g) =>
+              [0, 1].map((pos) => (
+                <tr key={`${g}-${pos}`}>
+                  <td
+                    className="sticky left-0 z-10 text-[10px] font-semibold px-2 py-1.5 whitespace-nowrap"
+                    style={{ background: "var(--color-bg-card)", color: "var(--color-text-secondary)", borderTop: "1px solid var(--border-subtle)" }}
+                  >
+                    {g} · {pos === 0 ? "1º" : "2º"}
+                  </td>
+                  {options.map((u) => {
+                    const team = u.payload.groups?.[g]?.[pos] ?? null;
+                    const sc = groupCellScore(g, team, pos, outcome, bracketPoints);
+                    const cellBg =
+                      sc && sc.resolved && sc.hit
+                        ? "color-mix(in srgb, var(--color-success) 10%, var(--color-bg-card))"
+                        : "var(--color-bg-card)";
+                    return (
+                      <td
+                        key={u.id}
+                        className="px-2 py-1.5"
+                        style={{ background: cellBg, borderTop: "1px solid var(--border-subtle)" }}
+                      >
+                        {team ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap" style={{ color: "var(--color-text-primary)" }}>
+                            <span aria-hidden="true">{getFlag(team)}</span>
+                            <span className="truncate" style={{ maxWidth: 92 }}>{team}</span>
+                            <PointsBadge score={sc} />
+                          </span>
+                        ) : (
+                          <span className="text-[11px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -509,6 +727,9 @@ function ConfrontoCard({
   bWinner,
   bLabel,
   isFinal,
+  colKey,
+  outcome,
+  bracketPoints,
 }: {
   confronto: Confronto;
   phase: Phase | "champion";
@@ -517,11 +738,15 @@ function ConfrontoCard({
   bWinner?: string | null;
   bLabel: string | null;
   isFinal: boolean;
+  colKey: ColKey;
+  outcome?: BracketOutcome;
+  bracketPoints?: BracketPoints;
 }) {
   const winA = venceu(confronto.a, phase, aPayload);
   const winB = venceu(confronto.b, phase, aPayload);
   const winnerATeam = winA ? confronto.a : winB ? confronto.b : null;
   const comparing = bWinner !== undefined && bLabel !== null;
+  const cellScore = koCellScore(colKey, winnerATeam, outcome, bracketPoints);
 
   return (
     <div
@@ -532,10 +757,11 @@ function ConfrontoCard({
         border: "1px solid var(--border-subtle)",
       }}
     >
-      <div className="px-2 pt-1 pb-0.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+      <div className="px-2 pt-1 pb-0.5 flex items-center justify-between gap-1" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
         <span className="text-[9px] font-bold tabular-nums" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>
           {isFinal ? "Final" : `Jogo ${confronto.matchNum}`}
         </span>
+        <PointsBadge score={cellScore} />
       </div>
       <SlotRow
         team={confronto.a}
@@ -635,16 +861,17 @@ function norm(s: string): string {
 
 // ─── Campeão ──────────────────────────────────────────────────
 
-function ChampionRow({ champion }: { champion: string }) {
+function ChampionRow({ champion, score }: { champion: string; score?: CellScore | null }) {
   return (
     <div
       className="w-full rounded-card overflow-hidden mt-1"
       style={{ border: "2px solid var(--color-gold)", boxShadow: "var(--shadow-gold)" }}
     >
-      <div className="px-2 py-1" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+      <div className="px-2 py-1 flex items-center justify-between gap-1" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
         <span className="text-[10px] font-bold uppercase tracking-[0.05em]" style={{ color: "var(--color-gold)" }}>
           🏆 Campeão
         </span>
+        <PointsBadge score={score ?? null} />
       </div>
       <div className="w-full flex items-center gap-2 px-2 py-2" style={{ minHeight: "40px" }}>
         <span className="text-[14px]" aria-hidden="true">{getFlag(champion)}</span>

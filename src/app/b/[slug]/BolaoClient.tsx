@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { Match, Prediction, PredictionScore, StandingRow, PoolMemberLite, RevealedPrediction, Comment } from "@/lib/types";
-import type { Ruleset } from "@/lib/scoring";
-import { computePrizePool, formatPrize } from "@/lib/scoring";
+import type { Ruleset, BracketOutcome, BracketPoints, BracketMatchInput } from "@/lib/scoring";
+import { computePrizePool, formatPrize, deriveBracketOutcome } from "@/lib/scoring";
 import { formatKickoff, deadlineLabel, deadlineUrgency, getFlag, stageLabel } from "@/lib/utils";
 import SpecialBetsCard from "./SpecialBetsCard";
 import BracketCard from "./BracketCard";
@@ -212,6 +212,27 @@ export default function BolaoClient({
     bracket: "Bracket",
   };
 
+  // Resultado real do torneio (derivado dos jogos) — alimenta a pontuação por
+  // acerto no comparativo de brackets. Fonte única: o mesmo deriveBracketOutcome
+  // usado no ranking ao vivo (bracket-live.ts), agora também no cliente.
+  const bracketOutcome = useMemo<BracketOutcome>(() => {
+    const inputs: BracketMatchInput[] = matches.map((m) => ({
+      id: m.id,
+      stage: m.stage as BracketMatchInput["stage"],
+      home_team: m.home_team,
+      away_team: m.away_team,
+      score_home_90: m.score_home_90,
+      score_away_90: m.score_away_90,
+      score_home_ft: m.score_home_ft,
+      score_away_ft: m.score_away_ft,
+      penalty_winner: m.penalty_winner ?? null,
+      status: m.status as BracketMatchInput["status"],
+      group_code: m.group_label ?? undefined,
+    }));
+    return deriveBracketOutcome(inputs);
+  }, [matches]);
+  const bracketPoints: BracketPoints | undefined = ruleset.advance_predictions?.points;
+
   const poolComments = comments.filter((c) => c.scope === "pool");
   // Recado mais recente do mural — alimenta o banner de resenha no topo.
   const lastComment = poolComments.length
@@ -222,7 +243,7 @@ export default function BolaoClient({
     <div className="min-h-dvh flex flex-col" style={{ background: "var(--color-bg-primary)" }}>
       {/* Header */}
       <header className="px-4 pt-safe pt-4 pb-3">
-        <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-lg lg:max-w-3xl mx-auto flex items-center justify-between gap-3">
           <h1 className="text-[22px] font-bold truncate" style={{ color: "var(--color-text-primary)" }}>
             {pool.name}
           </h1>
@@ -259,10 +280,10 @@ export default function BolaoClient({
 
       {/* Banner da Resenha — sempre visível, abre o mural em tela cheia */}
       <div className="px-4 pb-3">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-lg lg:max-w-3xl mx-auto">
           <button
             onClick={() => setResenhaOpen(true)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-card text-left transition-all"
+            className="w-full flex items-start gap-3 px-3 py-2.5 rounded-card text-left transition-all"
             style={{
               background: lastComment?.name.startsWith("🎙️")
                 ? "color-mix(in srgb, var(--color-accent) 12%, var(--color-bg-card))"
@@ -295,8 +316,8 @@ export default function BolaoClient({
                     </span>
                   </div>
                   <p
-                    className="text-[14px] font-medium line-clamp-2"
-                    style={{ color: "var(--color-text-primary)", lineHeight: 1.35 }}
+                    className="text-[14px] font-medium whitespace-pre-wrap break-words"
+                    style={{ color: "var(--color-text-primary)", lineHeight: 1.4 }}
                   >
                     {lastComment.body}
                   </p>
@@ -312,7 +333,7 @@ export default function BolaoClient({
                 </>
               )}
             </div>
-            <span className="text-[16px] flex-shrink-0" style={{ color: "var(--color-accent)" }} aria-hidden="true">
+            <span className="text-[16px] flex-shrink-0 self-center" style={{ color: "var(--color-accent)" }} aria-hidden="true">
               ›
             </span>
           </button>
@@ -321,7 +342,7 @@ export default function BolaoClient({
 
       {/* Tabs */}
       <div className="px-4 pb-3">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-lg lg:max-w-2xl mx-auto">
           <div
             className="flex p-1 rounded-button"
             style={{ background: "var(--color-bg-secondary)" }}
@@ -462,7 +483,13 @@ export default function BolaoClient({
             {/* Mega chaveamento — comparação de todos, só com o bolão fechado */}
             {bracketLocked && allBrackets.length > 1 && (
               <div className="max-w-lg lg:max-w-[1400px] mx-auto mb-5 pb-5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <MegaBracket allBrackets={allBrackets} currentUserId={currentUserId} groupTeams={groupTeams} />
+                <MegaBracket
+                  allBrackets={allBrackets}
+                  currentUserId={currentUserId}
+                  groupTeams={groupTeams}
+                  outcome={bracketOutcome}
+                  bracketPoints={bracketPoints}
+                />
               </div>
             )}
             {/* Desktop: largura total até 1400px; mobile: coluna única sem alteração */}
@@ -518,8 +545,8 @@ export default function BolaoClient({
               Fechar
             </button>
           </header>
-          <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
-            <div className="max-w-lg mx-auto">
+          <div className="flex-1 min-h-0 px-4 pt-4 pb-safe pb-4">
+            <div className="max-w-lg lg:max-w-2xl mx-auto h-full">
               <Comments
                 poolId={pool.id}
                 scope="pool"
@@ -527,6 +554,7 @@ export default function BolaoClient({
                 currentUserId={currentUserId}
                 placeholder="Provoca a galera…"
                 emptyLabel="Abre a resenha — manda a primeira."
+                layout="chat"
               />
             </div>
           </div>

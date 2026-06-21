@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Comment } from "@/lib/types";
 
@@ -26,6 +26,12 @@ interface Props {
   placeholder?: string;
   /** Estado vazio customizado. */
   emptyLabel?: string;
+  /**
+   * "inline" (default): lista + input no fluxo normal, ordem antigo→novo.
+   * "chat": ocupa toda a altura disponível, lista rola com input fixo embaixo
+   * e abre já no fim (mais recente visível) — estilo conversa de mensagens.
+   */
+  layout?: "inline" | "chat";
 }
 
 export default function Comments({
@@ -36,11 +42,26 @@ export default function Comments({
   currentUserId,
   placeholder = "Manda a real…",
   emptyLabel = "Seja o primeiro a comentar.",
+  layout = "inline",
 }: Props) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ordem cronológica natural: mais antigo no topo, mais recente embaixo.
+  // (O servidor pode devolver em qualquer ordem; aqui é a fonte da verdade visual.)
+  const ordered = [...comments].sort((a, b) =>
+    a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
+  );
+
+  // Auto-scroll pro fim quando em modo chat (abre na mensagem mais nova, sem
+  // o usuário precisar rolar a tela).
+  const endRef = useRef<HTMLDivElement>(null);
+  const isChat = layout === "chat";
+  useEffect(() => {
+    if (isChat) endRef.current?.scrollIntoView({ block: "end" });
+  }, [isChat, ordered.length]);
 
   async function submit() {
     const body = text.trim();
@@ -81,15 +102,16 @@ export default function Comments({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={isChat ? "flex flex-col h-full min-h-0" : "flex flex-col gap-3"}>
       {/* Lista */}
-      {comments.length === 0 ? (
+      <div className={isChat ? "flex-1 overflow-y-auto min-h-0 pr-0.5" : ""}>
+      {ordered.length === 0 ? (
         <p className="text-[13px] py-2" style={{ color: "var(--color-text-secondary)" }}>
           {emptyLabel}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {comments.map((c) => {
+          {ordered.map((c) => {
             const mine = c.user_id === currentUserId;
             // O Narrador (ADM automático) vem com o nome marcado por 🎙️.
             const isNarrator = c.name.startsWith("🎙️");
@@ -148,9 +170,18 @@ export default function Comments({
           })}
         </ul>
       )}
+        <div ref={endRef} aria-hidden="true" />
+      </div>
 
       {/* Input */}
-      <div className="flex items-end gap-2">
+      <div
+        className={
+          isChat
+            ? "flex items-end gap-2 flex-shrink-0 pt-3 mt-1"
+            : "flex items-end gap-2"
+        }
+        style={isChat ? { borderTop: "1px solid var(--border-subtle)" } : undefined}
+      >
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, 280))}

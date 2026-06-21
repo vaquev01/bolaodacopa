@@ -9,6 +9,7 @@
 
 import { useMemo } from "react";
 import { getFlag } from "@/lib/utils";
+import type { BracketOutcome, BracketPoints } from "@/lib/scoring";
 import BracketCompare from "./BracketCompare";
 
 interface BracketPayload {
@@ -30,9 +31,13 @@ interface Props {
   allBrackets: BracketEntry[];
   currentUserId: string;
   groupTeams: Record<string, string[]>;
+  /** Resultado real do torneio — habilita a pontuação por acerto no comparativo. */
+  outcome?: BracketOutcome;
+  /** Pontos por fase do ruleset — quanto vale cada acerto. */
+  bracketPoints?: BracketPoints;
 }
 
-export default function MegaBracket({ allBrackets, currentUserId, groupTeams }: Props) {
+export default function MegaBracket({ allBrackets, currentUserId, groupTeams, outcome, bracketPoints }: Props) {
   // Você primeiro, depois alfabético.
   const entries = useMemo(() => {
     return [...allBrackets].sort((a, b) => {
@@ -104,7 +109,13 @@ export default function MegaBracket({ allBrackets, currentUserId, groupTeams }: 
       </section>
 
       {/* Árvore comparativa: caminho de cada um, com filtro de competidor e fase */}
-      <BracketCompare allBrackets={allBrackets} currentUserId={currentUserId} groupTeams={groupTeams} />
+      <BracketCompare
+        allBrackets={allBrackets}
+        currentUserId={currentUserId}
+        groupTeams={groupTeams}
+        outcome={outcome}
+        bracketPoints={bracketPoints}
+      />
     </div>
   );
 }
